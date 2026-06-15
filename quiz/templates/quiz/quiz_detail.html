@@ -129,16 +129,27 @@
 
     // Route Guard verification
     async function checkAuthGuard() {
-        const { data: { session } } = await _supabase.auth.getSession();
-        if (!session) {
+    // Handle OAuth redirect hash first
+    const { data: { session }, error } = await _supabase.auth.getSession();
+    
+    if (!session) {
+        // Try to get session from URL hash (after OAuth redirect)
+        const { data, error: hashError } = await _supabase.auth.exchangeCodeForSession(window.location.hash);
+        
+        const { data: { session: newSession } } = await _supabase.auth.getSession();
+        if (!newSession) {
             document.getElementById('quiz-wrapper').classList.add('hidden');
             document.getElementById('guard-ui').classList.remove('hidden');
-        } else {
-            userToken = session.access_token;
-            loadQuestion();
+            return;
         }
+        userToken = newSession.access_token;
+    } else {
+        userToken = session.access_token;
     }
-
+    
+    console.log('Token set:', userToken ? 'YES' : 'NO');
+    loadQuestion();
+}
     // Questions are rendered server-side from the Question model
     const questions = JSON.parse(document.getElementById('quiz-questions-data').textContent);
 
@@ -276,7 +287,13 @@
         window.location.href = 'leaderboard/';
     });
 }
-
+// Listen for auth state changes (catches OAuth redirect)
+_supabase.auth.onAuthStateChange((event, session) => {
+    console.log('Auth event:', event);
+    if (session) {
+        userToken = session.access_token;
+    }
+});
     // Initialize Guard Sequence
     checkAuthGuard();
 </script>
