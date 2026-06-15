@@ -357,7 +357,6 @@ def create_quiz_preview(request):
         chapter_number = int(request.POST.get('chapter_number'))
         title = request.POST.get('title').strip()
 
-        # إنشاء المسابقة وتوليد الـ Slug النظيف تلقائياً من الموديل
         quiz = Quiz.objects.create(
             book_name=book_name,
             chapter_number=chapter_number,
@@ -391,13 +390,14 @@ def create_quiz_preview(request):
 
         Question.objects.bulk_create(questions_to_create)
         
-        # تنظيف بيانات الجلسة المؤقتة بعد الحفظ الناجح
         request.session.pop('parsed_questions', None)
         request.session.pop('quiz_meta', None)
         request.session.pop('quiz_step1_data', None)
 
-        # إصلاح: توجيه مباشر ومحمي باستخدام معامل الاسم لمنع تشويه الروابط السحابية الموجهة لصفحة النشر
-        return redirect('create_quiz_publish', quiz_slug=quiz.slug)
+        # إصلاح Vercel: نرسل الـ slug مفككاً ومقروءاً باللغة العربية مباشرة في الـ Redirect
+        from urllib.parse import unquote
+        clean_slug = unquote(quiz.slug)
+        return redirect('create_quiz_publish', quiz_slug=clean_slug)
 
     return render(request, 'quiz/panel/create_quiz_preview.html', {
         'questions': parsed_questions,
@@ -407,8 +407,15 @@ def create_quiz_preview(request):
 
 
 def create_quiz_publish(request, quiz_slug):
-    # إصلاح: جلب الكائن باستخدام الـ slug الفعلي والآمن الممرر بنظام التوجيه
-    quiz = get_object_or_404(Quiz, slug=quiz_slug)
+    # إصلاح Vercel الحاسم: نقوم بفك تشفير الـ slug يدوياً هنا ليطابق قاعدة البيانات مهما غيّر Vercel في ترميز الرابط
+    from urllib.parse import unquote
+    decoded_slug = unquote(quiz_slug)
+    
+    # البحث في قاعدة البيانات باستخدام الـ slug الأصلي أو المفكك لضمان جلب المسابقة
+    try:
+        quiz = Quiz.objects.get(slug=decoded_slug)
+    except Quiz.DoesNotExist:
+        quiz = get_object_or_404(Quiz, slug=quiz_slug)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -420,14 +427,13 @@ def create_quiz_publish(request, quiz_slug):
             quiz.save()
 
     raw_url = request.build_absolute_uri(reverse('quiz_view', args=[quiz.slug]))
-    quiz_url = decode_url_slug(raw_url)
+    quiz_url = unquote(raw_url)
 
     return render(request, 'quiz/panel/create_quiz_publish.html', {
         'quiz': quiz,
         'quiz_url': quiz_url,
         'active_tab': 'new_quiz',
     })
-
 
 def edit_existing_quiz(request, quiz_slug):
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
