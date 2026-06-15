@@ -34,6 +34,7 @@ def index_view(request):
 
 
 def quiz_view(request, quiz_slug):
+    quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug, is_active=True)
     questions_data = []
     for q in quiz.questions.all():
@@ -62,6 +63,7 @@ def quiz_view(request, quiz_slug):
 
 @require_POST
 def submit_score(request, quiz_slug):
+    quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug, is_active=True)
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
@@ -135,6 +137,7 @@ def submit_score(request, quiz_slug):
 
 
 def leaderboard_view(request, quiz_slug):
+    quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
     top_scores = Score.objects.filter(quiz=quiz).order_by('-score_value', 'time_taken_seconds')[:10]
 
@@ -292,6 +295,7 @@ def manage_quizzes(request):
 
 
 def delete_quiz(request, quiz_slug):
+    quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
     quiz.delete()
     return redirect('manage_quizzes')
@@ -436,6 +440,7 @@ def create_quiz_publish(request, quiz_slug):
     })
 
 def edit_existing_quiz(request, quiz_slug):
+    quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
     if request.method == 'POST':
         quiz.book_name = request.POST.get('book_name').strip()
