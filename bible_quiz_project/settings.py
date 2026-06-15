@@ -90,11 +90,12 @@ WSGI_APPLICATION = 'bible_quiz_project.wsgi.application'
 #     )
 # }
 # Database configuration
-DATABASE_URL = env('SUPABASE_URL', default=None)
+# Database configuration
+DATABASE_URL = env('SUPABASE_URL', default=os.environ.get('SUPABASE_URL', None))
 
 if DATABASE_URL:
     DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=0)  # نضع قيمة conn_max_age على 0 عند استخدام الـ Pooler
     }
 else:
     DATABASES = {
@@ -103,7 +104,6 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
