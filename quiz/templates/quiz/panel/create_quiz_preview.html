@@ -35,7 +35,7 @@
                 <div class="choice-row {% if q.correct == choice.key %}correct{% endif %}">
                     <input type="radio" name="q{{ forloop.parentloop.counter0 }}_correct" value="{{ choice.key }}" {% if q.correct == choice.key %}checked{% endif %}>
                     <span class="choice-letter">{{ choice.label }}</span>
-                    <input type="text" name="q{{ forloop.parentloop.counter0 }}_choice_{{ choice.key }}" value="{{ choice.value }}" placeholder="الاختيار {{ choice.label }}" required>
+                    <input type="text" name="q{{ forloop.parentloop.counter0 }}_choice_{{ choice.key }}" value="{{ choice.value }}" placeholder="الاختيار {{ choice.label }}" {% if choice.key == 'a' or choice.key == 'b' %}required{% endif %}>
                 </div>
                 {% endfor %}
             </div>
@@ -102,11 +102,13 @@
         
         let choicesHtml = '';
         choiceConfigs.forEach(c => {
+            // التحقق لجعل الاختيار أ و ب إجباريين، بينما ج و د اختياريين عند إضافة سؤال جديد
+            const isRequired = (c.key === 'a' || c.key === 'b') ? 'required' : '';
             choicesHtml += `
                 <div class="choice-row ${c.key === 'a' ? 'correct' : ''}">
                     <input type="radio" name="q${index}_correct" value="${c.key}" ${c.key === 'a' ? 'checked' : ''}>
                     <span class="choice-letter">${c.label}</span>
-                    <input type="text" name="q${index}_choice_${c.key}" placeholder="الاختيار ${c.label}" required>
+                    <input type="text" name="q${index}_choice_${c.key}" placeholder="الاختيار ${c.label}" ${isRequired}>
                 </div>
             `;
         });
