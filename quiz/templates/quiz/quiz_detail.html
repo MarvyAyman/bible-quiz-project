@@ -236,38 +236,46 @@
     };
 
     function finalizeQuiz() {
-        clearInterval(timerInterval);
-        document.getElementById('quiz-ui').style.display = 'none';
-        document.getElementById('loading-ui').style.display = 'block';
+    clearInterval(timerInterval);
+    document.getElementById('quiz-ui').style.display = 'none';
+    document.getElementById('loading-ui').style.display = 'block';
 
-        const elapsedSeconds = totalDurationSeconds - timeLeft;
+    const elapsedSeconds = totalDurationSeconds - timeLeft;
 
-        // Note: CSRF tokens are bypassed here because authentication validation
-        // shifts directly to the secure verified incoming Bearer JWT token header.
-        fetch('submit/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${userToken}`
-            },
-            body: JSON.stringify({
-                time_taken_seconds: elapsedSeconds,
-                answers: answers
-            })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.redirect_url) {
-                window.location.href = data.redirect_url;
-            } else {
-                window.location.href = 'leaderboard/';
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            window.location.href = 'leaderboard/';
-        });
+    if (!userToken) {
+        console.error('No user token available');
+        window.location.href = 'leaderboard/';
+        return;
     }
+
+    fetch(window.location.origin + window.location.pathname + 'submit/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userToken}`
+        },
+        body: JSON.stringify({
+            time_taken_seconds: elapsedSeconds,
+            answers: answers
+        })
+    })
+    .then(res => {
+        console.log('Submit status:', res.status);
+        return res.json();
+    })
+    .then(data => {
+        console.log('Submit response:', data);
+        if (data.redirect_url) {
+            window.location.href = data.redirect_url;
+        } else {
+            window.location.href = 'leaderboard/';
+        }
+    })
+    .catch(err => {
+        console.error('Submit failed:', err);
+        window.location.href = 'leaderboard/';
+    });
+}
 
     // Initialize Guard Sequence
     checkAuthGuard();
