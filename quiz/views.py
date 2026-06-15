@@ -375,6 +375,7 @@ def create_quiz_preview(request):
             if not text:
                 continue
 
+            # تم التحديث هنا لضمان استقبال النصوص الاختيارية لـ ج و د بسلاسة دون التسبب في أخطاء
             questions_to_create.append(Question(
                 quiz=quiz,
                 order=order,
@@ -444,6 +445,8 @@ def edit_existing_quiz(request, quiz_slug):
             text = request.POST.get(f'q{i}_text', '').strip()
             if not text:
                 continue
+            
+            # تم التحديث هنا لضمان استقبال نصوص ج و د الاختيارية أثناء عملية تعديل مسابقة قائمة بالفعل
             questions_to_create.append(Question(
                 quiz=quiz,
                 order=order,
