@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}لوحة التحكم{% endblock %} - منصة المسابقات</title>
+    <link rel="icon" type="image/jpeg" href="https://www.image2url.com/r2/default/images/1781534601894-1d027ee9-d4ec-424c-a2db-c657d7b391c1.jpg">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --gold: #D4AF37; --dark-gold: #996515; --beige: #F5F5DC;
+            --white: #FFFFFF; --text-color: #3e2723; --light-border: #e8e0d0;
+            --success: #137333; --success-bg: #e6f4ea;
+            --danger: #b3261e; --danger-bg: #fce8e6;
+            --sidebar-width: 230px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Tajawal', sans-serif; background-color: var(--beige);
+            color: var(--text-color); margin: 0; display: flex; min-height: 100vh;
+        }
+        
+        /* Sidebar default styling (Desktop) */
+        .sidebar {
+            width: var(--sidebar-width); background: var(--white);
+            border-left: 1px solid var(--light-border); padding: 30px 20px;
+            position: fixed; top: 0; right: 0; height: 100vh; box-sizing: border-box;
+            z-index: 1000;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .sidebar h2 { color: var(--dark-gold); font-size: 1.3rem; margin-bottom: 30px; text-align: center; }
+        .sidebar a {
+            display: block; padding: 12px 15px; margin-bottom: 8px; border-radius: 8px;
+            color: var(--text-color); text-decoration: none; font-weight: 500; transition: 0.2s;
+        }
+        .sidebar a:hover, .sidebar a.active { background: var(--beige); color: var(--dark-gold); }
+        .sidebar .back-link { margin-top: 40px; font-size: 0.85rem; color: #999; }
+        
+        /* Main Layout Content Window */
+        .main { margin-right: var(--sidebar-width); padding: 30px 40px; flex: 1; width: calc(100% - var(--sidebar-width)); }
+
+        /* Responsive Mobile Header Bar */
+        .mobile-header {
+            display: none;
+            background: var(--white);
+            border-bottom: 1px solid var(--light-border);
+            padding: 15px 20px;
+            align-items: center;
+            justify-content: flex-start; /* يجعل العناصر تبدأ من اليمين */
+            gap: 15px; /* مسافة مناسبة بين الأيقونة والعنوان */
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            width: 100%;
+        }
+        .mobile-header h2 { margin: 0; font-size: 1.1rem; color: var(--dark-gold); }
+        .menu-toggle {
+            background: transparent; border: none; font-size: 1.6rem; color: var(--dark-gold); cursor: pointer; padding: 5px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        
+        /* Mobile Close Container inside Sidebar */
+        .sidebar-close-container {
+            display: none;
+            justify-content: flex-start;
+            margin-bottom: 15px;
+        }
+
+        /* Dimming Overlay Backdrop */
+        .sidebar-overlay {
+            position: fixed; top: 0; right: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.4); z-index: 998;
+            opacity: 0; visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        /* Generic Framework Elements */
+        .page-header { margin-bottom: 30px; }
+        .page-header h1 { color: var(--dark-gold); margin: 0 0 5px; }
+        .page-header p { color: #8d6e63; margin: 0; }
+        .card {
+            background: var(--white); border: 1px solid var(--light-border);
+            border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        }
+        .btn {
+            display: inline-block; background: var(--gold); color: var(--white);
+            border: none; padding: 12px 28px; font-size: 1rem; border-radius: 8px;
+            cursor: pointer; font-weight: bold; text-decoration: none; font-family: inherit;
+            transition: 0.2s; text-align: center;
+        }
+        .btn:hover { background: var(--dark-gold); }
+        .btn-outline { background: transparent; color: var(--dark-gold); border: 2px solid var(--gold); }
+        .btn-outline:hover { background: var(--gold); color: var(--white); }
+        .btn-danger { background: var(--danger); }
+        .btn-danger:hover { background: #8c1d17; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 30px; }
+        .stat-card { display: flex; flex-direction: column; gap: 8px; }
+        .stat-label { font-size: 0.85rem; color: #8d6e63; }
+        .stat-value { font-size: 1.8rem; font-weight: 900; color: var(--dark-gold); }
+
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .charts-grid .card h3 { margin-top: 0; }
+
+        /* Responsive Table Scroller Protection */
+        .table-card { margin-bottom: 25px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .table-card h3 { margin-top: 0; margin-bottom: 15px; color: var(--dark-gold); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 600px; }
+        th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--light-border); }
+        th { color: #8d6e63; font-weight: 700; }
+        .empty-row { text-align: center; color: #aaa; padding: 20px 0; }
+
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: bold; }
+        .badge-success { background: var(--success-bg); color: var(--success); }
+        .badge-danger { background: var(--danger-bg); color: var(--danger); }
+        .badge-muted { background: #f1ede4; color: #7a6f5d; }
+
+        .form-card { max-width: 800px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .form-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .form-field label { font-weight: bold; font-size: 0.95rem; }
+        .form-field input[type="text"], .form-field input[type="number"], .form-field textarea, .form-field select {
+            padding: 12px; border: 1px solid var(--light-border); border-radius: 8px;
+            font-family: inherit; font-size: 1rem; color: var(--text-color); background: #fff; width: 100%;
+        }
+        .form-field input:focus, .form-field textarea:focus { outline: none; border-color: var(--gold); }
+        .divider { border: 0; border-top: 1px solid var(--light-border); margin: 25px 0; }
+        .or-divider { text-align: center; color: #8d6e63; margin: 15px 0; font-size: 1.1rem; }
+        .format-hint { background: #fffcf5; border-right: 4px solid var(--gold); margin-top: 25px; }
+        .format-hint h4 { margin-top: 0; color: var(--dark-gold); }
+        .format-hint pre { direction: ltr; text-align: left; background: #faf8f2; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; }
+        .alert-error { background: var(--danger-bg); color: var(--danger); padding: 15px; border-radius: 8px; font-weight: bold; margin-bottom: 20px; border: 1px solid #f5c2c1; }
+
+        .meta-banner { display: flex; gap: 30px; background: #fffcf5; border-right: 4px solid var(--gold); margin-bottom: 25px; flex-wrap: wrap; }
+        .question-card { background: var(--white); border: 1px solid var(--light-border); border-radius: 10px; padding: 20px; margin-bottom: 20px; position: relative; }
+        .question-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px dashed var(--light-border); padding-bottom: 10px; }
+        .question-number { font-weight: 900; color: var(--dark-gold); font-size: 1.1rem; }
+        .delete-btn { background: transparent; color: var(--danger); border: none; cursor: pointer; font-weight: bold; font-size: 0.9rem; font-family: inherit; }
+        .choices-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 15px; }
+        .choice-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--light-border); padding: 10px; border-radius: 8px; background: #fafaf6; transition: 0.2s; }
+        .choice-row:hover { border-color: var(--gold); }
+        .choice-row.correct { background: var(--success-bg); border-color: var(--success); }
+        .choice-letter { font-weight: bold; background: var(--beige); color: var(--text-color); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.85rem; }
+        .choice-row input[type="text"] { border: none; background: transparent; flex: 1; padding: 4px; font-family: inherit; font-size: 0.9rem; }
+        .choice-row input[type="text"]:focus { outline: none; }
+        .builder-actions { display: flex; justify-content: space-between; gap: 15px; margin-top: 10px; flex-wrap: wrap; }
+
+        /* Publish page */
+        .publish-card { display: flex; flex-direction: column; gap: 20px; margin-bottom: 20px; }
+        .link-row { display: flex; gap: 10px; }
+        .link-row input { flex: 1; }
+        .copy-feedback { font-size: 0.85rem; color: var(--success); }
+        .publish-actions { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+
+        /* --- Tablets & Phones Overrides (Max-width: 992px) --- */
+        @media (max-width: 992px) {
+            body { flex-direction: column; }
+            .mobile-header { display: flex; }
+            .sidebar-close-container { display: flex; }
+            
+            .sidebar { 
+                transform: translateX(100%);
+                opacity: 0;
+                visibility: hidden;
+                box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+            }
+            .sidebar.active {
+                transform: translateX(0);
+                opacity: 1;
+                visibility: visible;
+            }
+            .sidebar-overlay.active {
+                opacity: 1;
+                visibility: visible;
+            }
+            .main { margin-right: 0; width: 100%; padding: 20px; }
+            
+            /* Responsive formatting items */
+            .builder-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+            .builder-actions div { display: flex; flex-direction: column; gap: 10px; }
+            .builder-actions .btn { margin-left: 0 !important; width: 100%; }
+            .link-row { flex-direction: column; }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    <header class="mobile-header">
+        <button type="button" class="menu-toggle" id="menu-open-btn" aria-label="افتح القائمة">☰</button>
+        <h2>📖 لوحة التحكم</h2>
+    </header>
+
+    <div class="sidebar-overlay" id="menu-overlay"></div>
+
+    <nav class="sidebar" id="sidebar-nav">
+        <div class="sidebar-close-container">
+             <button type="button" class="menu-toggle" id="menu-close-btn" aria-label="أغلق القائمة">✕</button>
+        </div>
+        
+        <h2>📖 لوحة التحكم</h2>
+        <a href="{% url 'panel_dashboard' %}" class="{% if active == 'dashboard' %}active{% endif %}">📊 الإحصائيات العامة</a>
+        <a href="{% url 'manage_quizzes' %}" class="{% if active == 'manage_quizzes' %}active{% endif %}">⚙️ إدارة المسابقات</a>
+        <a href="{% url 'create_quiz_step1' %}" class="{% if active == 'new_quiz' %}active{% endif %}">✨ إنشاء مسابقة</a>
+        
+        <div class="back-link">
+            <a href="{% url 'index' %}">⬅️ عرض الموقع الرئيسي</a>
+        </div>
+    </nav>
+
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        const sidebar = document.getElementById('sidebar-nav');
+        const overlay = document.getElementById('menu-overlay');
+        const openBtn = document.getElementById('menu-open-btn');
+        const closeBtn = document.getElementById('menu-close-btn');
+
+        function openSidebar() {
+            sidebar.classList.add('active');
+            overlay.classList.add('active');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        openBtn.addEventListener('click', openSidebar);
+        closeBtn.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', closeSidebar);
+    </script>
+</body>
+</html>

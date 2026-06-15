@@ -1,0 +1,69 @@
+{% extends "quiz/base.html" %}
+
+{% block title %}لوحة الصدارة - {{ quiz.book_name }}{% endblock %}
+
+{% block extra_style %}
+body { justify-content: center; }
+.board-container {
+    background: var(--white); max-width: 650px; width: 100%; padding: 30px;
+    border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid var(--gold); text-align: center; box-sizing: border-box;
+}
+h1 { color: var(--dark-gold); margin-bottom: 5px; font-size: 1.8rem; }
+.sub-title { color: #7a6f5d; font-size: 1.1rem; margin-bottom: 25px; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid #e8e0d0; }
+th { color: #8d6e63; font-weight: bold; background-color: #fffcf5; }
+
+.rank-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%; background: #eee; font-weight: bold; font-size: 0.9rem;
+}
+.rank-1 { background: #ffd700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.rank-2 { background: #c0c0c0; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.rank-3 { background: #cd7f32; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+.action-link {
+    display: inline-block; margin-top: 30px; color: var(--dark-gold);
+    text-decoration: none; font-weight: bold; transition: 0.2s; border-bottom: 2px dashed var(--gold); padding-bottom: 3px;
+}
+.action-link:hover { color: var(--gold); border-bottom-style: solid; }
+{% endblock %}
+
+{% block content %}
+<div class="board-container">
+    <h1>لوحة الصدارة المتصدرة</h1>
+    <div class="sub-title">{{ quiz.book_name }} - الأصحاح {{ quiz.chapter_number }}</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>الترتيب</th>
+                <th>المتسابق</th>
+                <th>النتيجة</th>
+                <th>الوقت المستغرق</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in leaderboard %}
+            <tr>
+                <td>
+                    <span class="rank-badge {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% endif %}">
+                        {{ forloop.counter }}
+                    </span>
+                </td>
+                <td style="font-weight: bold;">{{ entry.user.first_name|default:entry.user.username }}</td>
+                <td style="color: var(--dark-gold); font-weight: bold;">{{ entry.score_value }} / 20</td>
+                <td>{{ entry.formatted_time }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="color: #777; padding: 30px 0;">لا توجد محاولات مسجلة لهذه المسابقة بعد. كن الأول!</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{% url 'index' %}" class="action-link">العودة للرئيسية تصفح المسابقات</a>
+</div>
+{% endblock %}

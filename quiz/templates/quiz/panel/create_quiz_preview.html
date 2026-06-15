@@ -1,0 +1,148 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}معاينة الأسئلة{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>معاينة وتعديل الأسئلة 📝</h1>
+    <p>راجع الأسئلة المكتشفة وعدّلها قبل الحفظ. (<span id="detected-count">{{ questions|length }}</span> سؤال مكتشف)</p>
+</div>
+
+<div class="card meta-banner">
+    <div><strong>السفر:</strong> {{ quiz_meta.book_name }}</div>
+    <div><strong>الأصحاح:</strong> {{ quiz_meta.chapter_number }}</div>
+    {% if quiz_meta.title %}<div><strong>العنوان:</strong> {{ quiz_meta.title }}</div>{% endif %}
+</div>
+
+<form method="post" id="quiz-builder-form">
+    {% csrf_token %}
+    <input type="hidden" name="book_name" value="{{ quiz_meta.book_name }}">
+    <input type="hidden" name="chapter_number" value="{{ quiz_meta.chapter_number }}">
+    <input type="hidden" name="title" value="{{ quiz_meta.title|default:'' }}">
+    <input type="hidden" name="total_questions" id="total_questions" value="{{ questions|length }}">
+
+    <div id="questions-container">
+        {% for q in questions %}
+        <div class="question-card" data-index="{{ forloop.counter0 }}">
+            <div class="question-card-header">
+                <span class="question-number">السؤال {{ forloop.counter }}</span>
+                <button type="button" class="delete-btn" onclick="removeQuestionCard(this)">🗑 حذف</button>
+            </div>
+            <div class="form-field">
+                <label>نص السؤال</label>
+                <textarea name="q{{ forloop.counter0 }}_text" rows="2" required>{{ q.text }}</textarea>
+            </div>
+            <div class="choices-grid">
+                {% for choice in q.choices %}
+                <div class="choice-row {% if q.correct == choice.key %}correct{% endif %}">
+                    <input type="radio" name="q{{ forloop.parentloop.counter0 }}_correct" value="{{ choice.key }}" {% if q.correct == choice.key %}checked{% endif %}>
+                    <span class="choice-letter">{{ choice.label }}</span>
+                    <input type="text" name="q{{ forloop.parentloop.counter0 }}_choice_{{ choice.key }}" value="{{ choice.value }}" placeholder="الاختيار {{ choice.label }}" required>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="form-field">
+                <label>التفسير</label>
+                <textarea name="q{{ forloop.counter0 }}_explanation" rows="2">{{ q.explanation }}</textarea>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="builder-actions">
+        <button type="button" class="btn btn-outline" id="add-question-btn">+ إضافة سؤال جديد</button>
+        <div>
+            {% if not is_editing_existing %}
+                <a href="{% url 'create_quiz_step1' %}" class="btn btn-outline" style="margin-left: 10px;">⬅️ رجوع للتعديل</a>
+            {% else %}
+                <a href="{% url 'manage_quizzes' %}" class="btn btn-outline" style="margin-left: 10px;">إلغاء</a>
+            {% endif %}
+            <button type="submit" class="btn">حفظ المسابقة والإنهاء 💾</button>
+        </div>
+    </div>
+</form>
+
+<script>
+    function updateLabelsAndTotals() {
+        const cards = document.querySelectorAll('#questions-container .question-card');
+        document.getElementById('total_questions').value = cards.length;
+        document.getElementById('detected-count').innerText = cards.length;
+        
+        cards.forEach((card, currentIdx) => {
+            card.setAttribute('data-index', currentIdx);
+            card.querySelector('.question-number').innerText = `السؤال ${currentIdx + 1}`;
+            
+            const textarea = card.querySelector('textarea[name$="_text"]');
+            if(textarea) textarea.name = `q${currentIdx}_text`;
+            
+            const explanation = card.querySelector('textarea[name$="_explanation"]');
+            if(explanation) explanation.name = `q${currentIdx}_explanation`;
+            
+            const radios = card.querySelectorAll('input[type="radio"]');
+            radios.forEach(radio => {
+                const choiceKey = radio.value;
+                radio.name = `q${currentIdx}_correct`;
+                
+                const textInput = radio.closest('.choice-row').querySelector('input[type="text"]');
+                if(textInput) textInput.name = `q${currentIdx}_choice_${choiceKey}`;
+            });
+        });
+    }
+
+    function removeQuestionCard(button) {
+        button.closest('.question-card').remove();
+        updateLabelsAndTotals();
+    }
+
+    function buildQuestionCard(index) {
+        const choiceConfigs = [
+            {key: 'a', label: 'أ'},
+            {key: 'b', label: 'ب'},
+            {key: 'c', label: 'ج'},
+            {key: 'd', label: 'د'}
+        ];
+        
+        let choicesHtml = '';
+        choiceConfigs.forEach(c => {
+            choicesHtml += `
+                <div class="choice-row ${c.key === 'a' ? 'correct' : ''}">
+                    <input type="radio" name="q${index}_correct" value="${c.key}" ${c.key === 'a' ? 'checked' : ''}>
+                    <span class="choice-letter">${c.label}</span>
+                    <input type="text" name="q${index}_choice_${c.key}" placeholder="الاختيار ${c.label}" required>
+                </div>
+            `;
+        });
+
+        return `
+            <div class="question-card" data-index="${index}">
+                <div class="question-card-header">
+                    <span class="question-number">السؤال ${index + 1}</span>
+                    <button type="button" class="delete-btn" onclick="removeQuestionCard(this)">🗑 حذف</button>
+                </div>
+                <div class="form-field">
+                    <label>نص السؤال</label>
+                    <textarea name="q${index}_text" rows="2" required></textarea>
+                </div>
+                <div class="choices-grid">${choicesHtml}</div>
+                <div class="form-field">
+                    <label>التفسير</label>
+                    <textarea name="q${index}_explanation" rows="2"></textarea>
+                </div>
+            </div>
+        `;
+    }
+
+    document.getElementById('add-question-btn').addEventListener('click', () => {
+        const container = document.getElementById('questions-container');
+        const currentTotal = document.querySelectorAll('#questions-container .question-card').length;
+        container.insertAdjacentHTML('beforeend', buildQuestionCard(currentTotal));
+        updateLabelsAndTotals();
+    });
+
+    document.getElementById('questions-container').addEventListener('change', (e) => {
+        if (e.target.type === 'radio') {
+            const card = e.target.closest('.question-card');
+            card.querySelectorAll('.choice-row').forEach(row => row.classList.remove('correct'));
+            e.target.closest('.choice-row').classList.add('correct');
+        }
+    });
+</script>
+{% endblock %}

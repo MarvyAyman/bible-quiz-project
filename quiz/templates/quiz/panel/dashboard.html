@@ -1,0 +1,133 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}نظرة عامة{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>نظرة عامة 📊</h1>
+    <p>إحصائيات وأداء المشتركين في المسابقات</p>
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">عدد المشتركين المسجلين</span>
+        <span class="stat-value">{{ total_subscribers }}</span>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">عدد المحاولات الكلي</span>
+        <span class="stat-value">{{ total_attempts }}</span>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">متوسط وقت الحل</span>
+        <span class="stat-value">{{ avg_time_formatted }}</span>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">متوسط نسبة الإجابات الصحيحة</span>
+        <span class="stat-value">{{ overall_avg_percentage }}%</span>
+    </div>
+</div>
+
+<div class="charts-grid">
+    <div class="card">
+        <h3>متوسط نسبة الإجابات الصحيحة لكل مسابقة</h3>
+        {% if quizzes %}
+            <canvas id="percentageChart"></canvas>
+        {% else %}
+            <p class="empty-row">لا توجد مسابقات بعد.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card table-card">
+    <h3>أداء المسابقات الحالي</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>المسابقة</th>
+                <th>المحاولات</th>
+                <th>متوسط الدرجة</th>
+                <th>النسبة</th>
+                <th>متوسط الوقت</th>
+                <th>الحالة</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quiz in quizzes %}
+            <tr>
+                <td>{{ quiz.book_name }} - أصحاح {{ quiz.chapter_number }}{% if quiz.title %} ({{ quiz.title }}){% endif %}</td>
+                <td>{{ quiz.attempts }}</td>
+                <td>
+                    {% if quiz.avg_score is not None %}
+                        {{ quiz.avg_score|floatformat:1 }} / {{ quiz.num_questions }}
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if quiz.avg_percentage is not None %}{{ quiz.avg_percentage }}%{% else %}—{% endif %}
+                </td>
+                <td>{{ quiz.avg_time_formatted }}</td>
+                <td>
+                    {% if quiz.is_active %}
+                        <span class="badge badge-success">نشط</span>
+                    {% else %}
+                        <span class="badge badge-muted">غير نشط</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="empty-row">لا توجد مسابقات بعد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card table-card">
+    <h3>أصعب الأسئلة (الأكثر إجابة خاطئة)</h3>
+    {% if hardest_questions %}
+    <table>
+        <thead>
+            <tr>
+                <th>السؤال</th>
+                <th>المسابقة</th>
+                <th>عدد الإجابات الخاطئة</th>
+                <th>نسبة الخطأ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for hq in hardest_questions %}
+            <tr>
+                <td>{{ hq.question_short }}</td>
+                <td>{{ hq.question__quiz__book_name }} - أصحاح {{ hq.question__quiz__chapter_number }}</td>
+                <td>{{ hq.wrong_count }}</td>
+                <td><span class="badge badge-danger">{{ hq.wrong_percentage }}%</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-row">لا توجد بيانات إجابات خاطئة بعد.</p>
+    {% endif %}
+</div>
+
+{% if quizzes %}
+<script>
+    const quizLabels = [{% for q in quizzes %}"{{ q.book_name }} ش {{ q.chapter_number }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+    const quizPercentages = [{% for q in quizzes %}{{ q.avg_percentage|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+    new Chart(document.getElementById('percentageChart'), {
+        type: 'bar',
+        data: {
+            labels: quizLabels,
+            datasets: [{
+                label: 'نسبة الإجابات الصحيحة %',
+                data: quizPercentages,
+                backgroundColor: '#D4AF37',
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true, max: 100 } },
+            plugins: { legend: { display: false } }
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

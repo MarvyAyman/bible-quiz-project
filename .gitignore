@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Databases (Crucial so you don't overwrite your cloud database)
+db.sqlite3
+db.sqlite3-journal
+
+# Compiled Static Assets for production (Render will generate this automatically)
+staticfiles/
+
+# Environments & Secrets
+.env
+.venv
+env/
+venv/
+ENV/
+
+# OS generated files
+.DS_Store
+Thumbs.db

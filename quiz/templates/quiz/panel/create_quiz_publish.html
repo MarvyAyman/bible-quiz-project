@@ -1,0 +1,50 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}نشر المسابقة{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{% if quiz.is_active %}المسابقة منشورة ✅{% else %}جاهزة للنشر 🚀{% endif %}</h1>
+    <p>{{ quiz.book_name }} - أصحاح {{ quiz.chapter_number }}{% if quiz.title %} ({{ quiz.title }}){% endif %} — {{ quiz.question_count }} سؤال</p>
+</div>
+
+<div class="card publish-card">
+    <div class="form-field">
+        <label>رابط المسابقة</label>
+        <div class="link-row">
+            <input type="text" readonly value="{{ quiz_url }}" id="quiz-url-input">
+            <button type="button" class="btn btn-outline" onclick="copyQuizUrl()">📋 نسخ</button>
+        </div>
+        <span id="copy-feedback" class="copy-feedback"></span>
+    </div>
+
+    <form method="post" class="publish-actions">
+        {% csrf_token %}
+        {% if quiz.is_active %}
+            <span class="badge badge-success">المسابقة متاحة الآن للمشتركين</span>
+            <button type="submit" name="action" value="unpublish" class="btn btn-danger">إلغاء النشر</button>
+        {% else %}
+            <span class="badge badge-muted">المسابقة غير منشورة بعد، لن تظهر للمشتركين</span>
+            <button type="submit" name="action" value="publish" class="btn">نشر المسابقة الآن</button>
+        {% endif %}
+    </form>
+</div>
+
+<div class="builder-actions">
+    <div>
+        <a href="{% url 'edit_existing_quiz' quiz.slug %}" class="btn btn-outline" style="margin-left: 10px;">🛠 تعديل أسئلة المسابقة</a>
+        <a href="{% url 'create_quiz_step1' %}" class="btn btn-outline">+ إنشاء مسابقة أخرى</a>
+    </div>
+    <a href="{% url 'panel_dashboard' %}" class="btn btn-outline">العودة للوحة التحكم</a>
+</div>
+
+<script>
+    function copyQuizUrl() {
+        const input = document.getElementById('quiz-url-input');
+        input.select();
+        navigator.clipboard.writeText(input.value).then(() => {
+            const feedback = document.getElementById('copy-feedback');
+            feedback.innerText = 'تم نسخ الرابط بنجاح! يمكنك الآن مشاركته.';
+            setTimeout(() => { feedback.innerText = ''; }, 4000);
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}إدارة المسابقات{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>⚙️ إدارة المسابقات</h1>
+    <p>تعديل، حذف، أو التحكم في حالة نشر المسابقات التي قمتِ بإنشائها</p>
+</div>
+
+<div class="card table-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0;">كل المسابقات المتاحة</h3>
+        <a href="{% url 'create_quiz_step1' %}" class="btn" style="padding: 8px 16px; font-size: 0.9rem;">+ مسابقة جديدة</a>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>المسابقة</th>
+                <th>عدد الأسئلة</th>
+                <th>تاريخ الإنشاء</th>
+                <th>الحالة</th>
+                <th style="text-align: center;">الإجراءات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quiz in quizzes %}
+            <tr>
+                <td><strong>{{ quiz.book_name }}</strong> - أصحاح {{ quiz.chapter_number }}{% if quiz.title %} ({{ quiz.title }}){% endif %}</td>
+                <td>{{ quiz.question_count }} سؤال</td>
+                <td>{{ quiz.created_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                    {% if quiz.is_active %}
+                        <span class="badge badge-success">منشورة ونشطة</span>
+                    {% else %}
+                        <span class="badge badge-muted">مسودة غير منشورة</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    <a href="{% url 'create_quiz_publish' quiz.slug %}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem; margin-left: 5px;">الحالة والروابط</a>
+                    <a href="{% url 'edit_existing_quiz' quiz.slug %}" class="btn" style="padding: 6px 12px; font-size: 0.85rem; margin-left: 5px; background-color: #a1887f;">📝 تعديل</a>
+                    <a href="{% url 'delete_quiz' quiz.slug %}" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;" onclick="return confirm('هل أنتِ متأكدة من حذف هذه المسابقة تماماً بجميع أسئلتها؟')">🗑 حذف</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="empty-row">لم تقوم بإنشاء أي مسابقات بعد. اضغط على زر "إنشاء مسابقة" للبدء!</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

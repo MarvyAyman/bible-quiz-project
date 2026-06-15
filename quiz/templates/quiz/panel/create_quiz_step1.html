@@ -1,0 +1,65 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}إنشاء مسابقة جديدة{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>إنشاء مسابقة جديدة ✨</h1>
+    <p>أدخل بيانات المسابقة، ثم الصق نص الأسئلة أو ارفع ملف Word/نصي بنفس التنسيق.</p>
+</div>
+
+{% if error %}
+<div class="alert-error">{{ error }}</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="card form-card">
+    {% csrf_token %}
+
+    <div class="form-grid">
+        <div class="form-field">
+            <label>اسم السفر</label>
+            <input type="text" name="book_name" required value="{{ form_data.book_name|default:'' }}" placeholder="مثال: إنجيل متى">
+        </div>
+        <div class="form-field">
+            <label>رقم الأصحاح</label>
+            <input type="number" name="chapter_number" required min="1" value="{{ form_data.chapter_number|default:'' }}" placeholder="مثال: 1">
+        </div>
+        <div class="form-field">
+            <label>العنوان (اختياري)</label>
+            <input type="text" name="title" value="{{ form_data.title|default:'' }}" placeholder="مثال: ميلاد المسيح">
+        </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="form-field">
+        <label>الصق نص الأسئلة هنا</label>
+        <textarea name="raw_text" rows="14" placeholder="1- في أي مدينة وُلِد المسيح؟
+ا- بيت لحم
+ب- الناصرة
+ج- القدس
+د- كفرناحوم
+ج: ا
+التفسير: وُلِد المسيح في بيت لحم كما ورد في إنجيل متى ولوقا.">{{ form_data.raw_text|default:'' }}</textarea>
+    </div>
+
+    <div class="or-divider"><strong>أو</strong></div>
+
+    <div class="form-field">
+        <label>ارفع ملف (Word .docx أو نص .txt)</label>
+        <input type="file" name="quiz_file" accept=".txt,.docx">
+    </div>
+
+    <div class="format-hint card">
+        <h4>📋 التنسيق المطلوب لكل سؤال</h4>
+        <pre>1- نص السؤال
+ا- الاختيار الأول
+ب- الاختيار الثاني
+ج- الاختيار الثالث
+د- الاختيار الرابع
+ج: ا
+التفسير: نص التفسير هنا</pre>
+        <p>كرّر هذا النمط لكل سؤال (1- ، 2- ، 3- ...)، وسيتم اكتشاف الأسئلة تلقائياً ويمكنك تعديلها في الخطوة التالية قبل الحفظ.</p>
+    </div>
+
+    <button type="submit" class="btn">معاينة الأسئلة ←</button>
+</form>
+{% endblock %}
