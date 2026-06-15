@@ -13,9 +13,9 @@ from .models import Quiz, Question, Score, QuestionResponse
 import json
 import re
 import jwt
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
-# فلتر مخصص لفك ترميز الروابط العربية داخل ملف العرض
+# فلتر مخصص لفك ترميز الروابط العربية داخل ملف العرض لقراءتها بشكل صحيح
 def decode_url_slug(url_string):
     return unquote(url_string)
 
@@ -353,10 +353,11 @@ def create_quiz_preview(request):
         return redirect('create_quiz_step1')
 
     if request.method == 'POST':
-        book_name = request.POST.get('book_name')
+        book_name = request.POST.get('book_name').strip()
         chapter_number = int(request.POST.get('chapter_number'))
-        title = request.POST.get('title')
+        title = request.POST.get('title').strip()
 
+        # إنشاء المسابقة وتوليد الـ Slug النظيف تلقائياً من الموديل
         quiz = Quiz.objects.create(
             book_name=book_name,
             chapter_number=chapter_number,
@@ -375,7 +376,6 @@ def create_quiz_preview(request):
             if not text:
                 continue
 
-            # تم التحديث هنا لضمان استقبال النصوص الاختيارية لـ ج و د بسلاسة دون التسبب في أخطاء
             questions_to_create.append(Question(
                 quiz=quiz,
                 order=order,
@@ -390,10 +390,13 @@ def create_quiz_preview(request):
             order += 1
 
         Question.objects.bulk_create(questions_to_create)
+        
+        # تنظيف بيانات الجلسة المؤقتة بعد الحفظ الناجح
         request.session.pop('parsed_questions', None)
         request.session.pop('quiz_meta', None)
         request.session.pop('quiz_step1_data', None)
 
+        # إصلاح: توجيه مباشر ومحمي باستخدام معامل الاسم لمنع تشويه الروابط السحابية الموجهة لصفحة النشر
         return redirect('create_quiz_publish', quiz_slug=quiz.slug)
 
     return render(request, 'quiz/panel/create_quiz_preview.html', {
@@ -404,6 +407,7 @@ def create_quiz_preview(request):
 
 
 def create_quiz_publish(request, quiz_slug):
+    # إصلاح: جلب الكائن باستخدام الـ slug الفعلي والآمن الممرر بنظام التوجيه
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
 
     if request.method == 'POST':
@@ -428,9 +432,12 @@ def create_quiz_publish(request, quiz_slug):
 def edit_existing_quiz(request, quiz_slug):
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
     if request.method == 'POST':
-        quiz.book_name = request.POST.get('book_name')
+        quiz.book_name = request.POST.get('book_name').strip()
         quiz.chapter_number = int(request.POST.get('chapter_number'))
-        quiz.title = request.POST.get('title')
+        quiz.title = request.POST.get('title').strip()
+        
+        # تصفير الـ slug لإعادة بنائه بشكل نظيف بناءً على البيانات المعدلة
+        quiz.slug = ""
         quiz.save()
 
         quiz.questions.all().delete()
@@ -445,8 +452,6 @@ def edit_existing_quiz(request, quiz_slug):
             text = request.POST.get(f'q{i}_text', '').strip()
             if not text:
                 continue
-            
-            # تم التحديث هنا لضمان استقبال نصوص ج و د الاختيارية أثناء عملية تعديل مسابقة قائمة بالفعل
             questions_to_create.append(Question(
                 quiz=quiz,
                 order=order,
