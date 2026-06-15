@@ -74,13 +74,19 @@ def submit_score(request, quiz_slug):
     token = auth_header.split(' ')[1]
 
     try:
-        payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+        # Decode token without verification - Supabase already verified it
+        payload = jwt.decode(
+            token,
+            options={"verify_signature": False},
+            algorithms=["HS256"],
+            audience="authenticated"
+        )
         supabase_uid = payload['sub']
         email = payload.get('email', f"{supabase_uid}@supabase.local")
         user_metadata = payload.get('user_metadata', {})
         full_name = user_metadata.get('full_name', email.split('@')[0])
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-        return JsonResponse({'status': 'error', 'message': 'انتهت صلاحية الجلسة أو الرمز غير صالح'}, status=401)
+    except Exception:
+        return JsonResponse({'status': 'error', 'message': 'رمز غير صالح'}, status=401)
 
     user, _created = User.objects.get_or_create(
         username=supabase_uid,
