@@ -12,6 +12,7 @@ from datetime import timedelta
 from .models import Quiz, Question, Score, QuestionResponse
 import json
 import re
+import base64
 import jwt
 from urllib.parse import unquote, quote
 from django.views.decorators.csrf import csrf_exempt
@@ -66,6 +67,11 @@ def submit_score(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug, is_active=True)
     auth_header = request.headers.get('Authorization', '')
+    
+    try:
+        # Supabase JWT secret is base64 encoded, decode it first
+        secret = base64.b64decode(settings.SUPABASE_JWT_SECRET + "==")
+        payload = jwt.decode(token, secret, algorithms=["HS256"], audience="authenticated")
     if not auth_header.startswith('Bearer '):
         return JsonResponse({'status': 'error', 'message': 'غير مصرح به'}, status=401)
 
