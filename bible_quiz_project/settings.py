@@ -131,12 +131,12 @@ USE_TZ = True
 
 
 # 4. Supabase variables & Custom configurations
-SUPABASE_URL = env('SUPABASE_URL', default='')
-SUPABASE_ANON_KEY = env('SUPABASE_ANON_KEY', default='')
-SUPABASE_JWT_SECRET = env('SUPABASE_JWT_SECRET', default='')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_JWT_SECRET = os.environ.get('SUPABASE_JWT_SECRET', '')
 
-CLIENT_ID = env('CLIENT_ID', default='')
-CLIENT_SECRET = env('CLIENT_SECRET', default='')
+CLIENT_ID = os.environ.get('CLIENT_ID', '')
+CLIENT_SECRET = os.environ.get('CLIENT_SECRET', '')
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
