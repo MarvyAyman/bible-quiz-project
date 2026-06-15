@@ -144,5 +144,9 @@ SUPABASE_JWT_SECRET = os.environ.get('SUPABASE_JWT_SECRET', '')
 CLIENT_ID = os.environ.get('CLIENT_ID', '')
 CLIENT_SECRET = os.environ.get('CLIENT_SECRET', '')
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://fatesho-alkotob-beryl.vercel.app',
+]
+
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
