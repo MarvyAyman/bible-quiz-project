@@ -14,7 +14,7 @@ import json
 import re
 import jwt
 from urllib.parse import unquote, quote
-
+from django.views.decorators.csrf import csrf_exempt
 # فلتر مخصص لفك ترميز الروابط العربية داخل ملف العرض لقراءتها بشكل صحيح
 def decode_url_slug(url_string):
     return unquote(url_string)
@@ -60,7 +60,7 @@ def quiz_view(request, quiz_slug):
     }
     return render(request, 'quiz/quiz_detail.html', context)
 
-
+@csrf_exempt
 @require_POST
 def submit_score(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
