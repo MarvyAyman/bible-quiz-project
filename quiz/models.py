@@ -15,11 +15,13 @@ class Quiz(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = f"{self.book_name} الاصحاح {self.chapter_number}"
+            from django.utils.text import slugify
+            base_slug = f"{self.book_name}-{self.chapter_number}"
             if self.title:
-                base_slug += f" {self.title}"
-            # استبدال المسافات بشرطات مع دعم الحروف العربية
-            self.slug = base_slug.replace(" ", "-")
+                base_slug += f"-{self.title}"
+            # Remove consecutive dashes that come from spaces in Arabic text
+            import re
+            self.slug = re.sub(r'-{2,}', '-', base_slug.replace(" ", "-")).strip('-')
         super().save(*args, **kwargs)
 
     @property
