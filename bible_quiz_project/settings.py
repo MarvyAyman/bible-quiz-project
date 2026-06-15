@@ -94,9 +94,15 @@ WSGI_APPLICATION = 'bible_quiz_project.wsgi.application'
 # Database configuration
 # DATABASE_URL = env('SUPABASE_URL', default=os.environ.get('SUPABASE_URL', None))
 
-if os.environ.get('SUPABASE_URL'):
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+
+if DATABASE_URL:
     DATABASES = {
-        'default': dj_database_url.config(conn_max_age=600, ssl_require=True)
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True
+        )
     }
 else:
     DATABASES = {
