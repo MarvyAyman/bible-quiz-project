@@ -90,7 +90,7 @@ WSGI_APPLICATION = 'bible_quiz_project.wsgi.application'
 #     )
 # }
 # Database configuration
-DATABASE_URL = env('DATABASE_URL', default=None)
+DATABASE_URL = env('SUPABASE_URL', default=None)
 
 if DATABASE_URL:
     DATABASES = {
