@@ -12,6 +12,27 @@
     {% if quiz_meta.title %}<div><strong>العنوان:</strong> {{ quiz_meta.title }}</div>{% endif %}
 </div>
 
+<style>
+    .add-choice-btn {
+        display: flex; align-items: center; gap: 8px;
+        border: 2px dashed #ccc; border-radius: 8px;
+        padding: 10px 14px; background: transparent;
+        color: #888; cursor: pointer; font-family: inherit;
+        font-size: 0.95rem; transition: 0.2s; margin-top: 6px;
+        width: 100%;
+    }
+    .add-choice-btn:hover { border-color: var(--primary, #5c6bc0); color: var(--primary, #5c6bc0); background: #f5f5ff; }
+    .choice-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .choice-row input[type="text"] { flex: 1; }
+    .choice-row .remove-choice-btn {
+        background: none; border: none; color: #ccc;
+        cursor: pointer; font-size: 1.1rem; padding: 2px 6px;
+        border-radius: 4px; transition: 0.15s; line-height: 1;
+    }
+    .choice-row .remove-choice-btn:hover { color: #e53935; background: #fde8e8; }
+    .choice-row.required-choice .remove-choice-btn { visibility: hidden; pointer-events: none; }
+</style>
+
 <form method="post" id="quiz-builder-form">
     {% csrf_token %}
     <input type="hidden" name="book_name" value="{{ quiz_meta.book_name }}">
@@ -26,20 +47,40 @@
                 <span class="question-number">السؤال {{ forloop.counter }}</span>
                 <button type="button" class="delete-btn" onclick="removeQuestionCard(this)">🗑 حذف</button>
             </div>
+
             <div class="form-field">
                 <label>نص السؤال</label>
                 <textarea name="q{{ forloop.counter0 }}_text" rows="2" required>{{ q.text }}</textarea>
             </div>
+
             <div class="choices-grid">
                 {% for choice in q.choices %}
-                <div class="choice-row {% if q.correct == choice.key %}correct{% endif %}">
-                    <input type="radio" name="q{{ forloop.parentloop.counter0 }}_correct" value="{{ choice.key }}" {% if q.correct == choice.key %}checked{% endif %}>
+                <div class="choice-row {% if forloop.counter <= 2 %}required-choice{% endif %} {% if q.correct == choice.key %}correct{% endif %}">
+                    <input type="radio"
+                           name="q{{ forloop.parentloop.counter0 }}_correct"
+                           value="{{ choice.key }}"
+                           {% if q.correct == choice.key %}checked{% endif %}>
                     <span class="choice-letter">{{ choice.label }}</span>
-                    <input type="text" name="q{{ forloop.parentloop.counter0 }}_choice_{{ choice.key }}" value="{{ choice.value }}" placeholder="الاختيار {{ choice.label }}" {% if choice.key == 'a' or choice.key == 'b' %}required{% endif %}>
+                    <input type="text"
+                           name="q{{ forloop.parentloop.counter0 }}_choice_{{ choice.key }}"
+                           value="{{ choice.value }}"
+                           placeholder="الاختيار {{ choice.label }}"
+                           {% if forloop.counter <= 2 %}required{% endif %}>
+                    <button type="button" class="remove-choice-btn" onclick="removeChoice(this)" title="حذف الاختيار">✕</button>
                 </div>
                 {% endfor %}
             </div>
-            <div class="form-field">
+
+            {# hidden count of choices for this question #}
+            <input type="hidden" name="q{{ forloop.counter0 }}_num_choices" value="{{ q.choices|length }}" class="num-choices-input">
+
+            {% if q.choices|length < 8 %}
+            <button type="button" class="add-choice-btn" onclick="addChoice(this)">
+                + إضافة خيار آخر
+            </button>
+            {% endif %}
+
+            <div class="form-field" style="margin-top: 10px;">
                 <label>التفسير</label>
                 <textarea name="q{{ forloop.counter0 }}_explanation" rows="2">{{ q.explanation }}</textarea>
             </div>
@@ -61,56 +102,168 @@
 </form>
 
 <script>
-    function updateLabelsAndTotals() {
-        const cards = document.querySelectorAll('#questions-container .question-card');
-        document.getElementById('total_questions').value = cards.length;
-        document.getElementById('detected-count').innerText = cards.length;
-        
-        cards.forEach((card, currentIdx) => {
-            card.setAttribute('data-index', currentIdx);
-            card.querySelector('.question-number').innerText = `السؤال ${currentIdx + 1}`;
-            
-            const textarea = card.querySelector('textarea[name$="_text"]');
-            if(textarea) textarea.name = `q${currentIdx}_text`;
-            
-            const explanation = card.querySelector('textarea[name$="_explanation"]');
-            if(explanation) explanation.name = `q${currentIdx}_explanation`;
-            
-            const radios = card.querySelectorAll('input[type="radio"]');
-            radios.forEach(radio => {
-                const choiceKey = radio.value;
-                radio.name = `q${currentIdx}_correct`;
-                
-                const textInput = radio.closest('.choice-row').querySelector('input[type="text"]');
-                if(textInput) textInput.name = `q${currentIdx}_choice_${choiceKey}`;
-            });
-        });
+    const CHOICE_KEYS  = ['a','b','c','d','e','f','g','h'];
+    const CHOICE_LABELS = {'a':'أ','b':'ب','c':'ج','d':'د','e':'هـ','f':'و','g':'ز','h':'ح'};
+    const MAX_CHOICES = 8;
+    const MIN_CHOICES = 2;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function getQIndex(card) {
+        return parseInt(card.getAttribute('data-index'));
     }
+
+    function getChoiceRows(card) {
+        return card.querySelectorAll('.choices-grid .choice-row');
+    }
+
+    function syncNumChoices(card) {
+        const rows = getChoiceRows(card);
+        card.querySelector('.num-choices-input').value = rows.length;
+    }
+
+    function refreshChoiceRow(row, qIdx, choiceIdx) {
+        const key   = CHOICE_KEYS[choiceIdx];
+        const label = CHOICE_LABELS[key];
+        const isRequired = choiceIdx < MIN_CHOICES;
+
+        row.classList.toggle('required-choice', isRequired);
+
+        const radio = row.querySelector('input[type="radio"]');
+        radio.name  = `q${qIdx}_correct`;
+        radio.value = key;
+
+        row.querySelector('.choice-letter').textContent = label;
+
+        const textInput = row.querySelector('input[type="text"]');
+        textInput.name  = `q${qIdx}_choice_${key}`;
+        textInput.placeholder = `الاختيار ${label}`;
+        if (isRequired) textInput.setAttribute('required', '');
+        else            textInput.removeAttribute('required');
+    }
+
+    function rebuildChoices(card) {
+        const qIdx = getQIndex(card);
+        getChoiceRows(card).forEach((row, i) => refreshChoiceRow(row, qIdx, i));
+        syncNumChoices(card);
+
+        // show/hide add-choice button
+        const rows = getChoiceRows(card);
+        let addBtn = card.querySelector('.add-choice-btn');
+        if (rows.length >= MAX_CHOICES) {
+            if (addBtn) addBtn.style.display = 'none';
+        } else {
+            if (!addBtn) {
+                addBtn = document.createElement('button');
+                addBtn.type = 'button';
+                addBtn.className = 'add-choice-btn';
+                addBtn.textContent = '+ إضافة خيار آخر';
+                addBtn.onclick = function() { addChoice(this); };
+                // insert before explanation field
+                const expField = card.querySelector('.form-field:last-of-type');
+                card.insertBefore(addBtn, expField);
+            }
+            addBtn.style.display = 'flex';
+        }
+    }
+
+    // ── add choice ───────────────────────────────────────────────────────────
+
+    function addChoice(btn) {
+        const card  = btn.closest('.question-card');
+        const grid  = card.querySelector('.choices-grid');
+        const rows  = getChoiceRows(card);
+        if (rows.length >= MAX_CHOICES) return;
+
+        const qIdx     = getQIndex(card);
+        const choiceIdx = rows.length;
+        const key      = CHOICE_KEYS[choiceIdx];
+        const label    = CHOICE_LABELS[key];
+
+        const row = document.createElement('div');
+        row.className = 'choice-row';
+        row.innerHTML = `
+            <input type="radio" name="q${qIdx}_correct" value="${key}">
+            <span class="choice-letter">${label}</span>
+            <input type="text" name="q${qIdx}_choice_${key}" placeholder="الاختيار ${label}">
+            <button type="button" class="remove-choice-btn" onclick="removeChoice(this)" title="حذف الاختيار">✕</button>
+        `;
+        grid.appendChild(row);
+        rebuildChoices(card);
+        row.querySelector('input[type="text"]').focus();
+    }
+
+    // ── remove choice ────────────────────────────────────────────────────────
+
+    function removeChoice(btn) {
+        const card = btn.closest('.question-card');
+        const rows = getChoiceRows(card);
+        if (rows.length <= MIN_CHOICES) return;
+
+        const row = btn.closest('.choice-row');
+
+        // if this was the correct answer, reassign to first choice
+        const radio = row.querySelector('input[type="radio"]');
+        if (radio.checked) {
+            const firstRadio = card.querySelector('.choices-grid input[type="radio"]');
+            if (firstRadio && firstRadio !== radio) {
+                firstRadio.checked = true;
+                firstRadio.closest('.choice-row').classList.add('correct');
+            }
+        }
+        row.classList.remove('correct');
+        row.remove();
+        rebuildChoices(card);
+    }
+
+    // ── remove question ───────────────────────────────────────────────────────
 
     function removeQuestionCard(button) {
         button.closest('.question-card').remove();
         updateLabelsAndTotals();
     }
 
+    // ── re-index all questions ────────────────────────────────────────────────
+
+    function updateLabelsAndTotals() {
+        const cards = document.querySelectorAll('#questions-container .question-card');
+        document.getElementById('total_questions').value = cards.length;
+        document.getElementById('detected-count').innerText = cards.length;
+
+        cards.forEach((card, idx) => {
+            card.setAttribute('data-index', idx);
+            card.querySelector('.question-number').innerText = `السؤال ${idx + 1}`;
+
+            const qText = card.querySelector('textarea[name$="_text"]');
+            if (qText) qText.name = `q${idx}_text`;
+
+            const qExp = card.querySelector('textarea[name$="_explanation"]');
+            if (qExp) qExp.name = `q${idx}_explanation`;
+
+            const numChoicesInput = card.querySelector('.num-choices-input');
+            if (numChoicesInput) numChoicesInput.name = `q${idx}_num_choices`;
+
+            getChoiceRows(card).forEach((row, ci) => refreshChoiceRow(row, idx, ci));
+        });
+    }
+
+    // ── build new blank question card ─────────────────────────────────────────
+
     function buildQuestionCard(index) {
-        const choiceConfigs = [
-            {key: 'a', label: 'أ'},
-            {key: 'b', label: 'ب'},
-            {key: 'c', label: 'ج'},
-            {key: 'd', label: 'د'}
-        ];
-        
+        const defaultChoices = ['a', 'b', 'c', 'd'];
         let choicesHtml = '';
-        choiceConfigs.forEach(c => {
-            // التحقق لجعل الاختيار أ و ب إجباريين، بينما ج و د اختياريين عند إضافة سؤال جديد
-            const isRequired = (c.key === 'a' || c.key === 'b') ? 'required' : '';
+        defaultChoices.forEach((key, ci) => {
+            const label      = CHOICE_LABELS[key];
+            const isRequired = ci < MIN_CHOICES ? 'required' : '';
+            const isCorrect  = ci === 0 ? 'correct' : '';
+            const checked    = ci === 0 ? 'checked' : '';
             choicesHtml += `
-                <div class="choice-row ${c.key === 'a' ? 'correct' : ''}">
-                    <input type="radio" name="q${index}_correct" value="${c.key}" ${c.key === 'a' ? 'checked' : ''}>
-                    <span class="choice-letter">${c.label}</span>
-                    <input type="text" name="q${index}_choice_${c.key}" placeholder="الاختيار ${c.label}" ${isRequired}>
-                </div>
-            `;
+                <div class="choice-row ${ci < MIN_CHOICES ? 'required-choice' : ''} ${isCorrect}">
+                    <input type="radio" name="q${index}_correct" value="${key}" ${checked}>
+                    <span class="choice-letter">${label}</span>
+                    <input type="text" name="q${index}_choice_${key}" placeholder="الاختيار ${label}" ${isRequired}>
+                    <button type="button" class="remove-choice-btn" onclick="removeChoice(this)" title="حذف الاختيار">✕</button>
+                </div>`;
         });
 
         return `
@@ -124,27 +277,32 @@
                     <textarea name="q${index}_text" rows="2" required></textarea>
                 </div>
                 <div class="choices-grid">${choicesHtml}</div>
-                <div class="form-field">
+                <input type="hidden" name="q${index}_num_choices" value="4" class="num-choices-input">
+                <button type="button" class="add-choice-btn" onclick="addChoice(this)">+ إضافة خيار آخر</button>
+                <div class="form-field" style="margin-top:10px;">
                     <label>التفسير</label>
                     <textarea name="q${index}_explanation" rows="2"></textarea>
                 </div>
-            </div>
-        `;
+            </div>`;
     }
 
-    document.getElementById('add-question-btn').addEventListener('click', () => {
-        const container = document.getElementById('questions-container');
-        const currentTotal = document.querySelectorAll('#questions-container .question-card').length;
-        container.insertAdjacentHTML('beforeend', buildQuestionCard(currentTotal));
-        updateLabelsAndTotals();
-    });
+    // ── correct choice highlight ──────────────────────────────────────────────
 
     document.getElementById('questions-container').addEventListener('change', (e) => {
         if (e.target.type === 'radio') {
             const card = e.target.closest('.question-card');
-            card.querySelectorAll('.choice-row').forEach(row => row.classList.remove('correct'));
+            getChoiceRows(card).forEach(r => r.classList.remove('correct'));
             e.target.closest('.choice-row').classList.add('correct');
         }
+    });
+
+    // ── add new question ──────────────────────────────────────────────────────
+
+    document.getElementById('add-question-btn').addEventListener('click', () => {
+        const container   = document.getElementById('questions-container');
+        const currentTotal = container.querySelectorAll('.question-card').length;
+        container.insertAdjacentHTML('beforeend', buildQuestionCard(currentTotal));
+        updateLabelsAndTotals();
     });
 </script>
 {% endblock %}

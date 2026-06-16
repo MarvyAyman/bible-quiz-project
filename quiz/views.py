@@ -2,30 +2,30 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.models import User
 from django.db.models import Avg, Count
-from django.db.models.functions import TruncDate
-from django.utils import timezone
 from django.conf import settings
-from datetime import timedelta
-from .models import Quiz, Question, Score, QuestionResponse
+from .models import Quiz, Question, QuestionChoice, Score, QuestionResponse
 import json
 import re
-import base64
 import jwt
-from urllib.parse import unquote, quote
+from urllib.parse import unquote
 from django.views.decorators.csrf import csrf_exempt
-# فلتر مخصص لفك ترميز الروابط العربية داخل ملف العرض لقراءتها بشكل صحيح
+
+
 def decode_url_slug(url_string):
     return unquote(url_string)
+
+# All valid choice keys in order
+ALL_CHOICE_KEYS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+CHOICE_KEY_LABELS = {'a': 'أ', 'b': 'ب', 'c': 'ج', 'd': 'د', 'e': 'هـ', 'f': 'و', 'g': 'ز', 'h': 'ح'}
 
 # ---------------------------------------------------------------------------
 # Public / subscriber views
 # ---------------------------------------------------------------------------
 
 def index_view(request):
-    quizzes = Quiz.objects.all().order_by('book_name', 'chapter_number')
+    quizzes = Quiz.objects.filter(is_active=True).order_by('book_name', 'chapter_number')
     context = {
         'quizzes': quizzes,
         'SUPABASE_URL': settings.SUPABASE_URL,
@@ -38,18 +38,17 @@ def quiz_view(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug, is_active=True)
     questions_data = []
-    for q in quiz.questions.all():
-        choices = []
-        for key, _label in Question.CHOICE_KEYS:
-            text = getattr(q, f'choice_{key}', '')
-            if text and text.strip():
-                choices.append({'key': key, 'text': text})
-
+    for q in quiz.questions.prefetch_related('choices').all():
+        choices = [
+            {'key': c.key, 'text': c.text}
+            for c in q.choices.all()
+        ]
+        correct_choice = q.first_correct_key
         questions_data.append({
             'id': q.id,
             'text': q.text,
             'choices': choices,
-            'correct': q.correct_choice,
+            'correct': correct_choice,
             'explanation': q.explanation,
         })
 
@@ -61,25 +60,23 @@ def quiz_view(request, quiz_slug):
     }
     return render(request, 'quiz/quiz_detail.html', context)
 
+
 @csrf_exempt
 @require_POST
 def submit_score(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug, is_active=True)
     auth_header = request.headers.get('Authorization', '')
-   
     if not auth_header.startswith('Bearer '):
         return JsonResponse({'status': 'error', 'message': 'غير مصرح به'}, status=401)
 
     token = auth_header.split(' ')[1]
 
     try:
-        # Decode token without verification - Supabase already verified it
         payload = jwt.decode(
             token,
             options={"verify_signature": False},
             algorithms=["HS256"],
-            audience="authenticated"
         )
         supabase_uid = payload['sub']
         email = payload.get('email', f"{supabase_uid}@supabase.local")
@@ -102,8 +99,7 @@ def submit_score(request, quiz_slug):
     except (ValueError, TypeError, json.JSONDecodeError):
         return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
 
-    questions = {q.id: q for q in quiz.questions.all()}
-    valid_choices = dict(Question.CHOICE_KEYS)
+    questions = {q.id: q for q in quiz.questions.prefetch_related('choices').all()}
     score_value = 0
     response_rows = []
 
@@ -115,10 +111,10 @@ def submit_score(request, quiz_slug):
             continue
 
         question = questions.get(question_id)
-        if not question or selected_choice not in valid_choices:
+        if not question or selected_choice not in ALL_CHOICE_KEYS:
             continue
 
-        is_correct = (selected_choice == question.correct_choice)
+        is_correct = question.choices.filter(key=selected_choice, is_correct=True).exists()
         if is_correct:
             score_value += 1
 
@@ -166,12 +162,21 @@ CHOICE_RE = re.compile(r'^\s*([اأبجد])\s*[-–.]\s*(.+)$')
 ANSWER_RE = re.compile(r'^\s*ج\s*:\s*([اأبجد])\s*$')
 EXPLANATION_RE = re.compile(r'^\s*(?:التفسير|تفسير)\s*:\s*(.*)$')
 
+
 def _finalize_question(question):
     raw_choices = question['choices']
     question['choices'] = [
-        {'key': key, 'label': label, 'value': raw_choices.get(key, '')}
-        for key, label in Question.CHOICE_KEYS
+        {'key': key, 'label': CHOICE_KEY_LABELS[key], 'value': raw_choices.get(key, '')}
+        for key in ['a', 'b', 'c', 'd']
+        if raw_choices.get(key, '').strip()
     ]
+    # Ensure at least a and b exist even if empty
+    existing_keys = [c['key'] for c in question['choices']]
+    for key in ['a', 'b']:
+        if key not in existing_keys:
+            question['choices'].insert(['a', 'b'].index(key), {
+                'key': key, 'label': CHOICE_KEY_LABELS[key], 'value': ''
+            })
     return question
 
 
@@ -245,7 +250,7 @@ def panel_dashboard(request):
     total_subscribers = User.objects.filter(is_staff=False).count()
     total_attempts = Score.objects.count()
     avg_time_seconds = Score.objects.aggregate(avg=Avg('time_taken_seconds'))['avg'] or 0
-    
+
     minutes = int(avg_time_seconds // 60)
     seconds = int(avg_time_seconds % 60)
     avg_time_formatted = f"{minutes:02d}:{seconds:02d}"
@@ -256,10 +261,9 @@ def panel_dashboard(request):
     overall_avg_percentage = round((overall_correct / overall_total * 100)) if overall_total > 0 else 0
 
     for q in quizzes:
-        q_attempts = Score.objects.filter(quiz=q).count()
-        q.attempts = q_attempts
+        q.attempts = Score.objects.filter(quiz=q).count()
         q.num_questions = q.questions.count()
-        
+
         q_avg_time = Score.objects.filter(quiz=q).aggregate(avg=Avg('time_taken_seconds'))['avg'] or 0
         q_mins = int(q_avg_time // 60)
         q_secs = int(q_avg_time % 60)
@@ -268,19 +272,17 @@ def panel_dashboard(request):
         q_correct = QuestionResponse.objects.filter(question__quiz=q, is_correct=True).count()
         q_total_resp = QuestionResponse.objects.filter(question__quiz=q).count()
         q.avg_percentage = round((q_correct / q_total_resp * 100)) if q_total_resp > 0 else None
-        
-        q_avg_score = Score.objects.filter(quiz=q).aggregate(avg=Avg('score_value'))['avg']
-        q.avg_score = q_avg_score
+        q.avg_score = Score.objects.filter(quiz=q).aggregate(avg=Avg('score_value'))['avg']
 
-    hardest_qs = QuestionResponse.objects.filter(is_correct=False)\
-        .values('question_id', 'question__text', 'question__quiz__book_name', 'question__quiz__chapter_number')\
-        .annotate(wrong_count=Count('id'))\
+    hardest_qs = QuestionResponse.objects.filter(is_correct=False) \
+        .values('question_id', 'question__text', 'question__quiz__book_name', 'question__quiz__chapter_number') \
+        .annotate(wrong_count=Count('id')) \
         .order_by('-wrong_count')[:5]
 
     for hq in hardest_qs:
         total_answers_for_q = QuestionResponse.objects.filter(question_id=hq['question_id']).count()
         hq['wrong_percentage'] = round((hq['wrong_count'] / total_answers_for_q * 100)) if total_answers_for_q > 0 else 0
-        hq['question_short'] = hq['question__text'][:60] + '...' if len(hq['question__text']) > 60 else hq['question__text']
+        hq['question_short'] = hq['question__text'][:60] + ('...' if len(hq['question__text']) > 60 else '')
 
     context = {
         'total_subscribers': total_subscribers,
@@ -357,6 +359,52 @@ def create_quiz_step1(request):
     })
 
 
+def _save_questions_from_post(request, quiz):
+    """Helper: reads q{i}_* fields from POST and saves Question + QuestionChoice rows."""
+    try:
+        total_qs = int(request.POST.get('total_questions', 0))
+    except ValueError:
+        total_qs = 0
+
+    order = 1
+    for i in range(total_qs):
+        text = request.POST.get(f'q{i}_text', '').strip()
+        if not text:
+            continue
+
+        # How many choices were submitted for this question
+        try:
+            num_choices = int(request.POST.get(f'q{i}_num_choices', 4))
+        except ValueError:
+            num_choices = 4
+
+        num_choices = max(2, min(8, num_choices))
+        correct_key = request.POST.get(f'q{i}_correct', 'a')
+
+        question = Question.objects.create(
+            quiz=quiz,
+            order=order,
+            text=text,
+            explanation=request.POST.get(f'q{i}_explanation', '').strip(),
+        )
+
+        choices_to_create = []
+        for idx, key in enumerate(ALL_CHOICE_KEYS[:num_choices]):
+            choice_text = request.POST.get(f'q{i}_choice_{key}', '').strip()
+            if not choice_text and key not in ('a', 'b'):
+                continue  # skip empty optional choices
+            choices_to_create.append(QuestionChoice(
+                question=question,
+                key=key,
+                text=choice_text,
+                is_correct=(key == correct_key),
+                order=idx,
+            ))
+
+        QuestionChoice.objects.bulk_create(choices_to_create)
+        order += 1
+
+
 def create_quiz_preview(request):
     parsed_questions = request.session.get('parsed_questions', [])
     quiz_meta = request.session.get('quiz_meta', {})
@@ -365,51 +413,23 @@ def create_quiz_preview(request):
         return redirect('create_quiz_step1')
 
     if request.method == 'POST':
-        book_name = request.POST.get('book_name').strip()
+        book_name = request.POST.get('book_name', '').strip()
         chapter_number = int(request.POST.get('chapter_number'))
-        title = request.POST.get('title').strip()
+        title = request.POST.get('title', '').strip()
 
         quiz = Quiz.objects.create(
             book_name=book_name,
             chapter_number=chapter_number,
             title=title
         )
+        _save_questions_from_post(request, quiz)
 
-        try:
-            total_qs = int(request.POST.get('total_questions', 0))
-        except ValueError:
-            total_qs = 0
-
-        questions_to_create = []
-        order = 1
-        for i in range(total_qs):
-            text = request.POST.get(f'q{i}_text', '').strip()
-            if not text:
-                continue
-
-            questions_to_create.append(Question(
-                quiz=quiz,
-                order=order,
-                text=text,
-                choice_a=request.POST.get(f'q{i}_choice_a', '').strip(),
-                choice_b=request.POST.get(f'q{i}_choice_b', '').strip(),
-                choice_c=request.POST.get(f'q{i}_choice_c', '').strip(),
-                choice_d=request.POST.get(f'q{i}_choice_d', '').strip(),
-                correct_choice=request.POST.get(f'q{i}_correct', 'a'),
-                explanation=request.POST.get(f'q{i}_explanation', '').strip(),
-            ))
-            order += 1
-
-        Question.objects.bulk_create(questions_to_create)
-        
         request.session.pop('parsed_questions', None)
         request.session.pop('quiz_meta', None)
         request.session.pop('quiz_step1_data', None)
 
-        # إصلاح Vercel: نرسل الـ slug مفككاً ومقروءاً باللغة العربية مباشرة في الـ Redirect
-        from urllib.parse import unquote
-        clean_slug = unquote(quiz.slug)
-        return redirect('create_quiz_publish', quiz_slug=clean_slug)
+        from urllib.parse import unquote as _unquote
+        return redirect('create_quiz_publish', quiz_slug=_unquote(quiz.slug))
 
     return render(request, 'quiz/panel/create_quiz_preview.html', {
         'questions': parsed_questions,
@@ -419,11 +439,8 @@ def create_quiz_preview(request):
 
 
 def create_quiz_publish(request, quiz_slug):
-    # إصلاح Vercel الحاسم: نقوم بفك تشفير الـ slug يدوياً هنا ليطابق قاعدة البيانات مهما غيّر Vercel في ترميز الرابط
-    from urllib.parse import unquote
-    decoded_slug = unquote(quiz_slug)
-    
-    # البحث في قاعدة البيانات باستخدام الـ slug الأصلي أو المفكك لضمان جلب المسابقة
+    from urllib.parse import unquote as _unquote
+    decoded_slug = _unquote(quiz_slug)
     try:
         quiz = Quiz.objects.get(slug=decoded_slug)
     except Quiz.DoesNotExist:
@@ -439,7 +456,7 @@ def create_quiz_publish(request, quiz_slug):
             quiz.save()
 
     raw_url = request.build_absolute_uri(reverse('quiz_view', args=[quiz.slug]))
-    quiz_url = unquote(raw_url)
+    quiz_url = decode_url_slug(raw_url)
 
     return render(request, 'quiz/panel/create_quiz_publish.html', {
         'quiz': quiz,
@@ -447,58 +464,35 @@ def create_quiz_publish(request, quiz_slug):
         'active_tab': 'new_quiz',
     })
 
+
 def edit_existing_quiz(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
+
     if request.method == 'POST':
-        quiz.book_name = request.POST.get('book_name').strip()
+        quiz.book_name = request.POST.get('book_name', '').strip()
         quiz.chapter_number = int(request.POST.get('chapter_number'))
-        quiz.title = request.POST.get('title').strip()
-        
-        # تصفير الـ slug لإعادة بنائه بشكل نظيف بناءً على البيانات المعدلة
+        quiz.title = request.POST.get('title', '').strip()
         quiz.slug = ""
         quiz.save()
 
-        quiz.questions.all().delete()
-        try:
-            total_qs = int(request.POST.get('total_questions', 0))
-        except ValueError:
-            total_qs = 0
-
-        questions_to_create = []
-        order = 1
-        for i in range(total_qs):
-            text = request.POST.get(f'q{i}_text', '').strip()
-            if not text:
-                continue
-            questions_to_create.append(Question(
-                quiz=quiz,
-                order=order,
-                text=text,
-                choice_a=request.POST.get(f'q{i}_choice_a', '').strip(),
-                choice_b=request.POST.get(f'q{i}_choice_b', '').strip(),
-                choice_c=request.POST.get(f'q{i}_choice_c', '').strip(),
-                choice_d=request.POST.get(f'q{i}_choice_d', '').strip(),
-                correct_choice=request.POST.get(f'q{i}_correct', 'a'),
-                explanation=request.POST.get(f'q{i}_explanation', '').strip(),
-            ))
-            order += 1
-        Question.objects.bulk_create(questions_to_create)
+        quiz.questions.all().delete()  # cascades to QuestionChoice
+        _save_questions_from_post(request, quiz)
         return redirect('manage_quizzes')
 
+    # Build questions list for template
     questions_list = []
-    for q in quiz.questions.all():
+    for q in quiz.questions.prefetch_related('choices').all():
         choices = [
-            {'key': 'a', 'label': 'أ', 'value': q.choice_a},
-            {'key': 'b', 'label': 'ب', 'value': q.choice_b},
-            {'key': 'c', 'label': 'ج', 'value': q.choice_c},
-            {'key': 'd', 'label': 'د', 'value': q.choice_d},
+            {'key': c.key, 'label': CHOICE_KEY_LABELS.get(c.key, c.key), 'value': c.text, 'is_correct': c.is_correct}
+            for c in q.choices.all()
         ]
+        correct_key = next((c['key'] for c in choices if c['is_correct']), 'a')
         questions_list.append({
             'text': q.text,
-            'correct': q.correct_choice,
+            'correct': correct_key,
             'explanation': q.explanation,
-            'choices': choices
+            'choices': choices,
         })
 
     return render(request, 'quiz/panel/create_quiz_preview.html', {
