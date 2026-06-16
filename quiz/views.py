@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.models import User
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Max, Min, OuterRef, Subquery, Window, F
 from django.conf import settings
 from .models import Quiz, Question, QuestionChoice, Score, QuestionResponse
 import json
@@ -11,7 +11,8 @@ import re
 import jwt
 from urllib.parse import unquote
 from django.views.decorators.csrf import csrf_exempt
-
+from django.db.models.functions import RowNumber
+from urllib.parse import unquote
 
 def decode_url_slug(url_string):
     return unquote(url_string)
@@ -140,17 +141,67 @@ def submit_score(request, quiz_slug):
     })
 
 
+
 def leaderboard_view(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
     quiz = get_object_or_404(Quiz, slug=quiz_slug)
-    top_scores = Score.objects.filter(quiz=quiz).order_by('-score_value', 'time_taken_seconds')[:10]
 
-    for score in top_scores:
+    # 1. استعلام ذكي لجلب أفضل درجة وأسرع وقت لكل مستخدم فريد (Distinct User) داخل هذه المسابقة
+    # نستخدم Subquery لجلب المعرف الفريد (ID) لأفضل محاولة لكل مستخدم
+    best_score_ids = Score.objects.filter(
+        quiz=quiz,
+        user_id=OuterRef('user_id')
+    ).order_by('-score_value', 'time_taken_seconds').values('id')[:1]
+
+    # جلب السجلات الكاملة الفريدة بناءً على الـ Subquery
+    unique_scores = Score.objects.filter(
+        id__in=Subquery(
+            Score.objects.filter(quiz=quiz)
+            .values('user_id')
+            .annotate(best_id=Subquery(best_score_ids))
+            .values('best_id')
+        )
+    ).select_related('user').order_by('-score_value', 'time_taken_seconds')
+
+    # 2. حساب الترتيب (Rank) لجميع المتسابقين ديناميكياً لتحديد موضع المستخدم الحالي
+    # نقوم بعمل Loop بسيط لإضافة الترتيب وصيغة الوقت للـ 10 الأوائل والبحث عن المستخدم الحالي
+    top_scores = []
+    user_score_entry = None
+    user_rank = None
+
+    for index, score in enumerate(unique_scores, start=1):
+        # تنسيق الوقت ليكون MM:SS
         minutes = score.time_taken_seconds // 60
         seconds = score.time_taken_seconds % 60
         score.formatted_time = f"{minutes:02d}:{seconds:02d}"
+        score.rank = index  # إسناد الترتيب الرقمي
 
-    return render(request, 'quiz/leaderboard.html', {'quiz': quiz, 'leaderboard': top_scores})
+        # جلب الـ 10 الأوائل فقط للوحة
+        if index <= 10:
+            top_scores.append(score)
+
+        # التحقق إذا كان هذا السجل يخص المستخدم الحالي المسجل دخوله
+        if request.user.is_authenticated and score.user_id == request.user.id:
+            user_score_entry = score
+            user_rank = index
+            
+            # إذا وصلنا للـ 10 الأوائل وعثرنا على المستخدم الحالي، يمكننا إنهاء الـ Loop مبكراً
+            if index >= 10:
+                break
+
+    # تحديد ما إذا كان المستخدم الحالي خارج العشرة الأوائل لعرضه في شريط منفصل
+    show_current_user_bottom = False
+    if user_score_entry and user_rank > 10:
+        show_current_user_bottom = True
+
+    context = {
+        'quiz': quiz,
+        'leaderboard': top_scores,
+        'total_questions': quiz.question_count,
+        'user_score_entry': user_score_entry,
+        'show_current_user_bottom': show_current_user_bottom,
+    }
+    return render(request, 'quiz/leaderboard.html', context)
 
 # ---------------------------------------------------------------------------
 # Text -> quiz structure parser
