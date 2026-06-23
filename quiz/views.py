@@ -33,13 +33,33 @@ def decode_url_slug(url_string):
 # ---------------------------------------------------------------------------
 
 def index_view(request):
-    materials = Material.objects.filter(is_active=True).order_by('category', 'chapter_number')
-    context = {
+    """الصفحة الرئيسية للمشتركين مع دعم أزرار الفلترة للأقسام المتاحة"""
+    category_filter = request.GET.get('category', 'all')
+    
+    # جلب المواد المنشورة والنشطة فقط للمشتركين
+    all_active_materials = Material.objects.filter(is_active=True).order_by('-created_at')
+
+    # حساب الأعداد لكل قسم ديناميكياً لإظهارها فوق أزرار الفلترة
+    counts = {
+        'all': all_active_materials.count(),
+        'bible': all_active_materials.filter(category='bible').count(),
+        'spiritual': all_active_materials.filter(category='spiritual').count(),
+        'iqraa': all_active_materials.filter(category='iqraa').count(),
+    }
+
+    # تطبيق الفلترة بناءً على التبويب المختار
+    if category_filter != 'all':
+        materials = all_active_materials.filter(category=category_filter)
+    else:
+        materials = all_active_materials
+
+    return render(request, 'quiz/index.html', {
         'materials': materials,
+        'category_filter': category_filter,
+        'counts': counts,
         'SUPABASE_URL': settings.SUPABASE_URL,
         'SUPABASE_ANON_KEY': settings.SUPABASE_ANON_KEY,
-    }
-    return render(request, 'quiz/index.html', context)
+    })
 
 
 def quiz_view(request, quiz_slug):

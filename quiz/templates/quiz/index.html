@@ -1,9 +1,10 @@
 {% extends "quiz/base.html" %}
 
-{% block title %}فتشوا الكتب - منصة المسابقات الكتابية {% endblock %}
+{% block title %}فتشوا الكتب - منصة المسابقات الكتابية والروحية{% endblock %}
 
 {% block extra_style %}
-.container { max-width: 900px; width: 100%; text-align: center; }
+/* توسيع الحاوية لتسمح بوضع الكروت بجانب بعضها بسلاسة */
+.container { max-width: 1200px; width: 100%; text-align: center; margin: 0 auto; padding: 0 20px; box-sizing: border-box; }
 .welcome-card {
     background: var(--white); border: 2px solid var(--gold); border-radius: 15px;
     padding: 40px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 40px;
@@ -28,23 +29,60 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
 .user-panel { background: #fffcf5; padding: 15px; border-radius: 10px; border: 1px dashed var(--gold); display: inline-flex; flex-direction: column; align-items: center; gap: 5px; }
 .user-name { font-weight: bold; color: var(--dark-gold); }
 
-.section-title { text-align: right; color: var(--dark-gold); font-size: 1.4rem; margin-bottom: 20px; border-bottom: 2px solid var(--gold); padding-bottom: 8px; width: 100%; }
-.quiz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; width: 100%; text-align: right; }
-.quiz-card {
-    background: var(--white); border: 1px solid #e8e0d0; border-radius: 12px;
-    padding: 20px; transition: 0.2s; display: flex; flex-direction: column; justify-content: space-between;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+/* تصميم أزرار الفلترة المطابقة للوحة التحكم */
+.filter-tabs { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center; direction: rtl; }
+.filter-tab {
+    padding: 10px 20px; border: 2px solid var(--light-border); border-radius: 25px;
+    background: #fff; color: #8d6e63; font-family: inherit; font-size: 0.95rem;
+    font-weight: bold; cursor: pointer; transition: 0.2s; text-decoration: none; display: inline-block;
 }
-.quiz-card:hover { transform: translateY(-3px); border-color: var(--gold); box-shadow: 0 6px 20px rgba(212,175,55,0.1); }
-.quiz-title { font-size: 1.2rem; font-weight: bold; color: var(--text-color); margin: 0 0 8px 0; }
-.quiz-meta { font-size: 0.9rem; color: #8d6e63; margin-bottom: 15px; }
-.quiz-actions { display: flex; gap: 10px; }
-.btn-sm { padding: 8px 16px; font-size: 0.9rem; border-radius: 6px; box-shadow: none; display: inline-block; text-decoration: none; font-weight: bold; background: var(--gold); color: #fff; }
-.btn-sm:hover { background: var(--dark-gold); }
-.btn-secondary { background: transparent; color: var(--dark-gold); border: 1px solid var(--gold); }
-.btn-secondary:hover { background: var(--beige); }
+.filter-tab.active { background: var(--gold); color: #fff; border-color: var(--gold); box-shadow: 0 4px 10px rgba(212, 175, 55, 0.2); }
+.filter-tab:hover:not(.active) { border-color: var(--gold); color: var(--dark-gold); }
+.filter-tab .count { opacity: 0.8; font-size: 0.85em; margin-right: 5px; background: rgba(0,0,0,0.05); padding: 2px 7px; border-radius: 10px; }
+.filter-tab.active .count { background: rgba(255,255,255,0.2); color: #fff; }
+
+/* شبكة كروت المسابقات المحدثة لتصبح 4 أعمدة متراصة بجانب بعضها */
+.quiz-grid {
+    display: grid; 
+    grid-template-columns: repeat(4, minmax(0, 1fr)); /* تقسيم متساوي لـ 4 أعمدة تماماً */
+    gap: 20px; 
+    margin-top: 20px; 
+    direction: rtl; 
+    text-align: right;
+}
+.quiz-card {
+    background: var(--white); border: 1px solid var(--light-border);
+    border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; justify-content: space-between;
+}
+.quiz-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(212, 175, 55, 0.12); }
+
+.quiz-category-tag {
+    font-size: 0.75rem; font-weight: bold; padding: 4px 10px; border-radius: 15px; display: inline-block; margin-bottom: 12px;
+}
+.tag-bible { background: #e3f2fd; color: #0d47a1; }
+.tag-spiritual { background: #f3e5f5; color: #4a148c; }
+.tag-iqraa { background: #efebe9; color: #3e2723; }
+
+.quiz-card h3 { margin: 0 0 10px 0; color: #3e2723; font-size: 1.15rem; font-weight: 700; line-height: 1.4; }
+.quiz-meta { color: #6d4c41; font-size: 0.88rem; margin-bottom: 20px; display: flex; flex-direction: column; gap: 5px; }
+
+/* جعل الأزرار مرنة ومتناسقة داخل المساحة المتاحة للكارت */
+.quiz-actions { display: flex; gap: 8px; margin-top: auto; }
+.quiz-actions .btn { flex: 1; text-align: center; text-decoration: none; font-weight: bold; font-size: 0.85rem; padding: 8px; border-radius: 8px; white-space: nowrap; }
 
 .hidden { display: none !important; }
+
+/* التحكم بالتجاوب التام عند تصفح الموقع من أجهزة الموبايل والتابلت */
+@media (max-width: 1024px) {
+    .quiz-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } /* 3 أعمدة للشاشات المتوسطة */
+}
+@media (max-width: 768px) {
+    .quiz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } /* عمودين للشاشات الصغيرة */
+}
+@media (max-width: 480px) {
+    .quiz-grid { grid-template-columns: 1fr; } /* عمود واحد للموبايل لسهولة القراءة */
+}
 {% endblock %}
 
 {% block content %}
@@ -71,21 +109,49 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
         </div>
     </div>
 
-    <h2 class="section-title">المسابقات المتاحة</h2>
+    <div class="filter-tabs">
+        <a href="?category=bible" class="filter-tab {% if category_filter == 'bible' %}active{% endif %}">
+            📖 كتاب مقدس <span class="count">{{ counts.bible }}</span>
+        </a>
+        <a href="?category=spiritual" class="filter-tab {% if category_filter == 'spiritual' %}active{% endif %}">
+            📚 كتب روحية <span class="count">{{ counts.spiritual }}</span>
+        </a>
+        <a href="?category=iqraa" class="filter-tab {% if category_filter == 'iqraa' %}active{% endif %}">
+            📁 اقرأ واعرف واكسب <span class="count">{{ counts.iqraa }}</span>
+        </a>
+    </div>
+
     <div class="quiz-grid">
-        {% for quiz in quizzes %}
+        {% for material in materials %}
             <div class="quiz-card">
                 <div>
-                    <h3 class="quiz-title">{{ quiz.book_name }}</h3>
-                    <div class="quiz-meta">الأصحاح {{ quiz.chapter_number }}{% if quiz.title %} — {{ quiz.title }}{% endif %}</div>
+                    {% if material.category == 'bible' %}
+                        <span class="quiz-category-tag tag-bible">📖 كتاب مقدس</span>
+                    {% elif material.category == 'spiritual' %}
+                        <span class="quiz-category-tag tag-spiritual">📚 كتاب روحي</span>
+                    {% else %}
+                        <span class="quiz-category-tag tag-iqraa">📁 اقرأ واعرف واكسب</span>
+                    {% endif %}
+
+                    <h3>{{ material.source_name }}</h3>
+                    
+                    <div class="quiz-meta">
+                        <span>{% if material.category == 'bible' %} اصحاح {% else %} فصل {% endif %}: <b>{{ material.chapter_number }}</b></span>
+                        {% if material.title %}
+                            <span style="font-size: 0.85rem; color: #8d6e63;"> {{ material.title }}</span>
+                        {% endif %}
+                    </div>
                 </div>
+
                 <div class="quiz-actions">
-                    <a href="{% url 'quiz_view' quiz.slug %}" class="btn btn-sm">ابدأ المسابقة</a>
-                    <a href="{% url 'leaderboard_view' quiz.slug %}" class="btn btn-sm btn-secondary">لوحة الصدارة</a>
+                    <a href="{% url 'quiz_view' quiz_slug=material.slug %}" class="btn" style="background-color: var(--gold); color: #fff;">📝 دخول</a>
+                    <a href="{% url 'leaderboard_view' quiz_slug=material.slug %}" class="btn btn-outline">🏆 الصدارة</a>
                 </div>
             </div>
         {% empty %}
-            <p style="grid-column: 1/-1; color: #777; text-align: center;">لا توجد مسابقات مضافة حالياً.</p>
+            <div style="grid-column: 1/-1; padding: 40px; background: #fafafa; border-radius: 12px; border: 1px solid #eee;">
+                <p style="color: #777; font-size: 1.1rem; margin: 0;">لا توجد مسابقات منشورة حالياً في هذا القسم. تابعنا قريباً! 👋</p>
+            </div>
         {% endfor %}
     </div>
 </div>
@@ -118,11 +184,6 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
         });
     }
 
-    async function logout() {
-        await _supabase.auth.signOut();
-        window.location.reload();
-    }
-
-    checkUser();
+    document.addEventListener('DOMContentLoaded', checkUser);
 </script>
 {% endblock %}

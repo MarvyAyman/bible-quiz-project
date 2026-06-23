@@ -153,13 +153,13 @@
 <div class="form-container-aligned">
     <div class="page-header">
         <h1>{% if material %}🛠 تعديل المحتوى{% else %}✨ إنشاء محتوى جديد{% endif %} ({{ category_label }})</h1>
-        <p>ادخلي البيانات والنص المكتوب، وراجعي الأسئلة فوراً في نفس الصفحة قبل الحفظ النهائي</p>
+        <p>ادخل البيانات ونص الاسئلة</p>
     </div>
 
     <!-- الـ Toggles العلوية المتناسقة العرض تماماً -->
     <div class="builder-actions">
         <button type="button" id="tab-write-btn" class="btn" style="background-color: #d4af37; color: #fff;" onclick="switchTab('write')">📝 البيانات ونص الأسئلة</button>
-        <button type="button" id="tab-preview-btn" class="btn btn-outline" onclick="switchTab('preview')">👁️ المعاينة الفورية والمراجعة</button>
+        <button type="button" id="tab-preview-btn" class="btn btn-outline" onclick="switchTab('preview')">👁️ معاينة الاسئلة</button>
     </div>
 
     <form id="material-unified-form" method="post">
@@ -170,20 +170,29 @@
             <div class="form-grid">
                 <div class="form-field">
                     <label for="id_source_name">
-                        {% if category == 'bible' %}اسم السفر:{% elif category == 'spiritual' %}اسم الكتاب الروحي:{% else %}اسم مسابقة اقرأ:{% endif %}
+                        {% if category == 'bible' %}اسم السفر:{% elif category == 'spiritual' %}اسم الكتاب:{% else %}اسم الكتاب المقرر :{% endif %}
                     </label>
-                    <input type="text" id="id_source_name" name="source_name" value="{% if material %}{{ material.source_name }}{% endif %}" required placeholder="مثال: تكوين، أو حياة الصلاة...">
+                    <input type="text" id="id_source_name" name="source_name" value="{% if material %}{{ material.source_name }}{% endif %}" required placeholder="مثال: سفر التكوين">
                 </div>
                 
+                {% if category == 'bible'%}
                 <div class="form-field">
-                    <label for="id_chapter_number">رقم الأصحاح / الفصل / الجزء:</label>
+                    <label for="id_chapter_number">رقم الأصحاح :</label>
                     <input type="number" id="id_chapter_number" name="chapter_number" value="{% if material %}{{ material.chapter_number }}{% else %}1{% endif %}" required min="1">
                 </div>
+                {% else %}
+            
+                <div class="form-field">
+                    <label for="id_chapter_number">رقم الفصل :</label>
+                    <input type="number" id="id_chapter_number" name="chapter_number" value="{% if material %}{{ material.chapter_number }}{% else %}1{% endif %}" required min="1">
+                </div>
+                {% endif %}
+
             </div>
 
             <div class="form-field">
-                <label for="id_title">عنوان فرعي إضافي (اختياري):</label>
-                <input type="text" id="id_title" name="title" value="{% if material %}{{ material.title }}{% endif %}" placeholder="مثال: قصة يوسف الصديق...">
+                <label for="id_title">العنوان (اختياري):</label>
+                <input type="text" id="id_title" name="title" value="{% if material %}{{ material.title }}{% endif %}" placeholder="مثال: اسرار البيدر">
             </div>
 
             <!-- قسم الروابط الديناميكي المحدث بالكامل -->
@@ -229,7 +238,7 @@
             {% endif %}
 
             <div class="form-field" style="margin-top: 25px;">
-                <label for="id_raw_text" style="font-weight: bold;">صبي نص الأسئلة هنا بالتنسيق الذكي المحدث:</label>
+                <label for="id_raw_text" style="font-weight: bold;">الصق نص الأسئلة هنا:</label>
                 <textarea id="id_raw_text" rows="14" style="direction: rtl; font-family: 'Courier New', monospace; font-size: 1rem; padding: 15px; border-radius: 8px; border: 1px solid #ccc;" placeholder="1- نص السؤال الأول هنا
 ا- الاختيار الأول
 ب- الاختيار الثاني
@@ -248,7 +257,7 @@
 د- الاختيار الرابع
 ج: ا
 التفسير: نص التفسير هنا</div>
-                <p class="footer-text">كرّر هذا النمط لكل سؤال (1-، 2-، 3-...)، ويمكنكِ وضع حتى 8 خيارات للسؤال الواحد (من ا- إلى ح-)، وسيتم التعرف عليها ومعاينتها تلقائياً.</p>
+                <p class="footer-text">كرّر هذا النمط لكل سؤال (1-، 2-، 3-...)، ويمكنك وضع حتى 8 خيارات للسؤال الواحد (من ا- إلى ح-)، وسيتم التعرف عليها ومعاينتها تلقائياً.</p>
             </div>
         </div>
 

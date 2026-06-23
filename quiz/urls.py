@@ -21,4 +21,6 @@ urlpatterns = [
     re_path(r'^panel/materials/(?P<quiz_slug>[^/]+)/publish/$', views.create_material_publish, name='create_material_publish'),
     re_path(r'^panel/materials/(?P<quiz_slug>[^/]+)/delete/$', views.delete_material, name='delete_material'),
     re_path(r'^panel/materials/(?P<quiz_slug>[^/]+)/toggle/$', views.material_publish_toggle, name='material_publish_toggle'),
+    # re_path(r'^quiz/(?P<quiz_slug>[^/]+)/$', views.quiz_view, name='quiz_view'),
+    re_path(r'^quiz/(?P<quiz_slug>[^/]+)/leaderboard/$', views.leaderboard_view, name='leaderboard_view'),
 ]
