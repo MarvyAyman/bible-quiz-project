@@ -1,154 +1,145 @@
 {% extends "quiz/base.html" %}
-{% block title %}لوحة الصدارة — {{ quiz.book_name }}{% endblock %}
 
-{% block content %}
-<div style="font-family:'Tajawal',sans-serif; direction:rtl; padding:1rem 0; max-width:650px; margin:0 auto;">
+{% block title %}لوحة الصدارة - {{ quiz.book_name }}{% endblock %}
 
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+{% block extra_style %}
+body { justify-content: center; }
 
-<style>
-:root {
-  --gold:#D4AF37; --dark-gold:#996515; --beige:#F5F5DC;
+.board-container {
+    background: var(--white); max-width: 650px; width: 100%;
+    padding: 30px; border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    border: 2px solid var(--gold); box-sizing: border-box;
 }
-.lb-header { text-align:center; margin-bottom:1.5rem; }
-.lb-title { font-size:1.6rem; font-weight:700; color:var(--dark-gold); margin:0 0 4px; }
-.lb-sub { font-size:0.95rem; color:#7a6f5d; margin:0; }
 
-.lb-table { width:100%; border-collapse:collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
-.lb-table th {
-  font-size:0.85rem; color:#7a6f5d;
-  padding:12px; border-bottom:1px solid #e8e0d0;
-  font-weight:700; text-align:right;
+.lb-header { text-align: center; margin-bottom: 1.5rem; }
+.lb-header h1 { color: var(--dark-gold); margin: 0 0 4px; font-size: 1.8rem; }
+.lb-header p { color: #7a6f5d; font-size: 1rem; margin: 0; }
+
+table { width: 100%; border-collapse: collapse; }
+th {
+    font-size: 0.82rem; color: #8d6e63; font-weight: bold;
+    padding: 8px 12px; border-bottom: 1px solid #e8e0d0;
+    text-align: right; background: #fffcf5;
 }
-.lb-row { transition:background 0.15s; }
-.lb-row td { padding:12px; border-bottom:0.5px solid #f4f0e6; vertical-align:middle; }
-.lb-row:last-child td { border-bottom:none; }
+td { padding: 11px 12px; border-bottom: 0.5px solid #e8e0d0; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
 
-/* تأثيرات المراتب الثلاثة الأولى و حساب المستخدم الحالي */
-.lb-row.top-1 { background:rgba(212,175,55,0.06); border-right:4px solid #D4AF37; }
-.lb-row.top-2 { background:rgba(180,180,180,0.05); border-right:4px solid #b0b0b0; }
-.lb-row.top-3 { background:rgba(180,110,50,0.05); border-right:4px solid #cd7f32; }
-.lb-row.current-user { background:rgba(28,176,246,0.06); border-right:4px solid #1cb0f6; }
+tr.top-1 { background: rgba(212,175,55,0.08); border-right: 3px solid var(--gold); }
+tr.top-2 { background: rgba(180,180,180,0.07); border-right: 3px solid #b0b0b0; }
+tr.top-3 { background: rgba(180,110,50,0.07); border-right: 3px solid #cd7f32; }
+tr.current-user { background: rgba(28,176,246,0.07); border-right: 3px solid #1cb0f6; }
 
 .rank-badge {
-  display:inline-flex; align-items:center; justify-content:center;
-  width:36px; height:36px; border-radius:50%;
-  font-weight:700; font-size:0.95rem;
-  background:#f0eadd; color:#7a6f5d;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 50%;
+    font-weight: bold; font-size: 0.95rem;
+    background: #eee; color: #888;
 }
-.rank-badge.r1 { background:#D4AF37; color:#fff; }
-.rank-badge.r2 { background:#b0b0b0; color:#fff; }
-.rank-badge.r3 { background:#cd7f32; color:#fff; }
-.rank-badge.r-you { background:#1cb0f6; color:#fff; }
+.rank-1 { background: var(--gold); color: #fff; }
+.rank-2 { background: #b0b0b0; color: #fff; }
+.rank-3 { background: #cd7f32; color: #fff; }
+.rank-you { background: #1cb0f6; color: #fff; }
 
-.medal { font-size:1.1rem; margin-right:6px; }
-
-.player-name { font-weight:700; font-size:0.95rem; color:#2d2d2d; }
 .you-badge {
-  display:inline-block; font-size:0.7rem; font-weight:700;
-  background:rgba(28,176,246,0.15); color:#1cb0f6;
-  padding:2px 8px; border-radius:20px; margin-left:6px;
-  vertical-align:middle;
+    display: inline-block; font-size: 0.7rem; font-weight: bold;
+    background: rgba(28,176,246,0.15); color: #1cb0f6;
+    padding: 2px 8px; border-radius: 20px; margin-left: 6px;
+    vertical-align: middle;
 }
-.score-val { font-weight:700; color:var(--dark-gold); font-size:0.95rem; }
-.time-val { font-size:0.85rem; color:#7a6f5d; }
+
+.divider-row td {
+    text-align: center; font-size: 0.78rem; color: #aaa;
+    padding: 6px 0; border-bottom: none; letter-spacing: 0.05em;
+}
 
 .lb-actions {
-  display:flex; gap:12px; margin-top:1.5rem; justify-content:center; flex-wrap:wrap;
+    display: flex; gap: 12px; margin-top: 1.5rem;
+    justify-content: center; flex-wrap: wrap;
 }
 .btn-back {
-  display:inline-flex; align-items:center; gap:6px;
-  padding:10px 20px; border-radius:8px;
-  border:1.5px solid #e8e0d0;
-  background:#fff; color:#2d2d2d; font-size:0.9rem;
-  font-family:inherit; cursor:pointer; text-decoration:none;
-  font-weight:500; transition:background 0.15s;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 20px; border-radius: 8px;
+    border: 1.5px solid #ccc; background: #fff;
+    color: var(--text-color); font-size: 0.9rem;
+    font-family: inherit; cursor: pointer;
+    text-decoration: none; font-weight: bold; transition: background 0.15s;
 }
-.btn-back:hover { background:#fcfbfa; }
+.btn-back:hover { background: #f5f5f5; }
 .btn-retake {
-  display:inline-flex; align-items:center; gap:6px;
-  padding:10px 20px; border-radius:8px;
-  border:none; background:var(--dark-gold);
-  color:#fff; font-size:0.9rem; text-decoration: none;
-  font-family:inherit; cursor:pointer;
-  font-weight:700; transition:opacity 0.15s;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 20px; border-radius: 8px;
+    border: none; background: var(--dark-gold);
+    color: #fff; font-size: 0.9rem;
+    font-family: inherit; cursor: pointer;
+    font-weight: bold; transition: opacity 0.15s;
+    text-decoration: none;
 }
-.btn-retake:hover { opacity:0.88; }
+.btn-retake:hover { opacity: 0.88; }
+{% endblock %}
 
-.divider-label {
-  text-align:center; font-size:0.8rem; color:#7a6f5d;
-  padding:12px 0 6px; letter-spacing:0.05em; font-weight: bold;
-}
-</style>
+{% block content %}
+<div class="board-container">
+    <div class="lb-header">
+        <h1>لوحة الصدارة 🏆</h1>
+        <p>{{ quiz.book_name }} - الأصحاح {{ quiz.chapter_number }}{% if quiz.title %} — {{ quiz.title }}{% endif %}</p>
+    </div>
 
-<div class="lb-header">
-  <p class="lb-title">لوحة الصدارة 🏆</p>
-  <p class="lb-sub">{{ quiz.book_name }} - الأصحاح {{ quiz.chapter_number }}{% if quiz.title %} — {{ quiz.title }}{% endif %}</p>
-</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:52px;">الترتيب</th>
+                <th>المتسابق</th>
+                <th>النتيجة</th>
+                <th>الوقت</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in leaderboard %}
+            <tr class="{% if forloop.counter == 1 %}top-1{% elif forloop.counter == 2 %}top-2{% elif forloop.counter == 3 %}top-3{% endif %} {% if entry.user.username == current_user_uid %}current-user{% endif %}">
+                <td>
+                    <span class="rank-badge {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% endif %} {% if entry.user.username == current_user_uid %}rank-you{% endif %}">
+                        {{ forloop.counter }}
+                    </span>
+                    {% if forloop.counter == 1 %}👑{% endif %}
+                </td>
+                <td>
+                    {% if entry.user.username == current_user_uid %}
+                        <span class="you-badge">أنت</span>
+                    {% endif %}
+                    <strong>{{ entry.user.first_name|default:entry.user.username }}</strong>
+                </td>
+                <td style="color: var(--dark-gold); font-weight: bold;">{{ entry.score_value }} / {{ quiz.question_count }}</td>
+                <td style="color: #8d6e63; font-size: 0.9rem;">{{ entry.formatted_time }}</td>
+            </tr>
+            {% endfor %}
 
-<table class="lb-table">
-  <thead>
-    <tr>
-      <th style="width:75px;">الترتيب</th>
-      <th>المتسابق</th>
-      <th>النتيجة</th>
-      <th>الوقت</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for entry in leaderboard %}
-    <tr class="lb-row {% if entry.rank == 1 %}top-1{% elif entry.rank == 2 %}top-2{% elif entry.rank == 3 %}top-3{% elif user.is_authenticated and entry.user_id == user.id %}current-user{% endif %}">
-      <td>
-        {% if entry.rank == 1 %}
-          <span class="rank-badge r1">١</span>
-        {% elif entry.rank == 2 %}
-          <span class="rank-badge r2">٢</span>
-        {% elif entry.rank == 3 %}
-          <span class="rank-badge r3">٣</span>
-        {% else %}
-          <span class="rank-badge">{{ entry.rank }}</span>
-        {% endif %}
-      </td>
-      <td>
-        {% if user.is_authenticated and entry.user_id == user.id %}
-          <span class="you-badge">أنت</span>
-        {% endif %}
-        <span class="player-name">{{ entry.user.get_full_name|default:entry.user.username }}</span>
-      </td>
-      <td><span class="score-val">{{ entry.score_value }} / {{ total_questions }}</span></td>
-      <td><span class="time-val">{{ entry.formatted_time }}</span></td>
-    </tr>
-    {% empty %}
-    <tr>
-      <td colspan="4" style="text-align: center; color: #777; padding: 20px;">لا توجد محاولات مسجلة لهذه المسابقة بعد. كن أول من يشارك!</td>
-    </tr>
-    {% endfor %}
+            {% if current_user_rank and current_user_rank > 10 %}
+            <tr class="divider-row"><td colspan="4">— موقعك —</td></tr>
+            <tr class="current-user">
+                <td><span class="rank-badge rank-you">{{ current_user_rank }}</span></td>
+                <td>
+                    <span class="you-badge">أنت</span>
+                    <strong>{{ current_user_name }}</strong>
+                </td>
+                <td style="color: var(--dark-gold); font-weight: bold;">{{ current_user_score }} / {{ quiz.question_count }}</td>
+                <td style="color: #8d6e63; font-size: 0.9rem;">{{ current_user_time }}</td>
+            </tr>
+            {% endif %}
 
-    {# عرض شريط المستخدم الحالي في الأسفل إذا كان ترتيبه متأخراً خارج العشرة الأوائل #}
-    {% if show_current_user_bottom %}
-    <tr><td colspan="4"><div class="divider-label">— موقعك الحالي —</div></td></tr>
+            {% if not leaderboard %}
+            <tr>
+                <td colspan="4" style="color: #777; padding: 30px 0; text-align: center;">
+                    لا توجد محاولات مسجلة لهذه المسابقة بعد. كن الأول!
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
 
-    <tr class="lb-row current-user">
-      <td><span class="rank-badge r-you">{{ user_score_entry.rank }}</span></td>
-      <td>
-        <span class="you-badge">أنت</span>
-        <span class="player-name">{{ user_score_entry.user.get_full_name|default:user_score_entry.user.username }}</span>
-      </td>
-      <td><span class="score-val">{{ user_score_entry.score_value }} / {{ total_questions }}</span></td>
-      <td><span class="time-val">{{ user_score_entry.formatted_time }}</span></td>
-    </tr>
-    {% endif %}
-  </tbody>
-</table>
-
-<div class="lb-actions">
-  <a href="{% url 'index' %}" class="btn-back">
-    🏠 العودة للرئيسية
-  </a>
-  <a href="{% url 'quiz_view' quiz.slug %}" class="btn-retake">
-    🔄 أعد المحاولة
-  </a>
-</div>
-
+    <div class="lb-actions">
+        <a href="{% url 'index' %}" class="btn-back">🏠 العودة للرئيسية</a>
+        <a href="{% url 'quiz_view' quiz.slug %}" class="btn-retake">🔄 أعد المحاولة</a>
+    </div>
 </div>
 {% endblock %}

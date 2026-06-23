@@ -47,8 +47,8 @@
             border-bottom: 1px solid var(--light-border);
             padding: 15px 20px;
             align-items: center;
-            justify-content: flex-start; /* يجعل العناصر تبدأ من اليمين */
-            gap: 15px; /* مسافة مناسبة بين الأيقونة والعنوان */
+            justify-content: flex-start;
+            gap: 15px;
             position: sticky;
             top: 0;
             z-index: 999;
@@ -201,8 +201,11 @@
         
         <h2>📖 لوحة التحكم</h2>
         <a href="{% url 'panel_dashboard' %}" class="{% if active == 'dashboard' %}active{% endif %}">📊 الإحصائيات العامة</a>
-        <a href="{% url 'manage_quizzes' %}" class="{% if active == 'manage_quizzes' %}active{% endif %}">⚙️ إدارة المسابقات</a>
-        <a href="{% url 'create_quiz_step1' %}" class="{% if active == 'new_quiz' %}active{% endif %}">✨ إنشاء مسابقة</a>
+        <a href="{% url 'manage_materials' %}" class="{% if active == 'manage_materials' %}active{% endif %}">⚙️ إدارة المحتوى</a>
+        
+        <a href="{% url 'create_material_step1' %}?category=bible" class="{% if active == 'create_material_step1' and request.GET.category == 'bible' %}active{% endif %}">📖 كتاب مقدس</a>
+        <a href="{% url 'create_material_step1' %}?category=spiritual" class="{% if active == 'create_material_step1' and request.GET.category == 'spiritual' %}active{% endif %}">📚 كتاب روحي</a>
+        <a href="{% url 'create_material_step1' %}?category=iqraa" class="{% if active == 'create_material_step1' and request.GET.category == 'iqraa' %}active{% endif %}">📁 اقرأ واعرف واكسب</a>
         
         <div class="back-link">
             <a href="{% url 'index' %}">⬅️ عرض الموقع الرئيسي</a>

@@ -19,5 +19,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('quiz.urls')),  # This securely forwards traffic to your app URLs
+    path('', include('quiz.urls')),          # روابط المسابقات والـ Dashboard العامة
 ]

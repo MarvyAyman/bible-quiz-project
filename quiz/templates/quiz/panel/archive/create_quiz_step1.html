@@ -1,0 +1,99 @@
+<div class="mb-4" style="font-family: 'Tajawal', sans-serif; direction: rtl;">
+    <label class="form-label fw-bold">تصنيف المحتوى</label>
+    <ul class="nav nav-tabs border-bottom-0 mb-3" id="categoryTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-bible" data-bs-toggle="tab" data-bs-target="#content-bible" type="button" onclick="setCategory('bible')">📖 كتاب مقدس</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-spiritual" data-bs-toggle="tab" data-bs-target="#content-spiritual" type="button" onclick="setCategory('spiritual')">📚 كتاب روحي</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-iqraa" data-bs-toggle="tab" data-bs-target="#content-iqraa" type="button" onclick="setCategory('iqraa')">📁 اقرأ واعرف واكسب</button>
+        </li>
+    </ul>
+    <input type="hidden" name="category" id="id_category" value="{{ form_data.category|default:'bible' }}">
+</div>
+
+<script>
+    function setCategory(catValue) {
+        document.getElementById('id_category').value = catValue;
+        const titleFieldWrapper = document.getElementById('title_field_wrapper');
+        const linksSection = document.getElementById('iqraa_links_section');
+        
+        if (catValue === 'bible') {
+            titleFieldWrapper.classList.add('d-none');
+            linksSection.classList.add('d-none');
+        } else if (catValue === 'spiritual') {
+            titleFieldWrapper.classList.remove('d-none');
+            linksSection.classList.add('d-none');
+        } else if (catValue === 'iqraa') {
+            titleFieldWrapper.classList.remove('d-none');
+            linksSection.classList.remove('d-none');
+        }
+    }
+    // Set initial state on edit / page load error re-entry
+    window.addEventListener('DOMContentLoaded', () => {
+        const initialCat = document.getElementById('id_category').value;
+        const targetTab = document.getElementById('tab-' + initialCat);
+        if (targetTab) targetTab.click();
+    });
+</script>
+
+<div id="iqraa_links_section" class="card border p-3 mb-4 d-none text-end" style="background: #FDFDFD;">
+    <h6 class="fw-bold border-bottom pb-2 mb-3">🔗 روابط المرفقات والوسائط الإضافية (بحد أقصى 8)</h6>
+    <div id="links_container">
+        {% for link in form_data.links %}
+        <div class="row g-2 mb-2 align-items-center link-row">
+            <div class="col-md-3">
+                <select name="link_type[]" class="form-select form-select-sm">
+                    <option value="summary_pdf" {% if link.link_type == 'summary_pdf' %}selected{% endif %}>ملخص PDF</option>
+                    <option value="full_pdf" {% if link.link_type == 'full_pdf' %}selected{% endif %}>الكتاب كامل PDF</option>
+                    <option value="image" {% if link.link_type == 'image' %}selected{% endif %}>صورة توضيحية</option>
+                    <option value="podcast" {% if link.link_type == 'podcast' %}selected{% endif %}>بودكاست صوتي</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <input type="url" name="link_url[]" value="{{ link.url }}" class="form-control form-control-sm" placeholder="https://example.com/file">
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="link_label[]" value="{{ link.label }}" class="form-control form-control-sm" placeholder="عنوان اختياري">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="this.closest('.link-row').remove()">حذف</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <button type="button" id="add_link_btn" class="btn btn-sm btn-outline-primary mt-2 style-dashed" style="border-style: dashed;" onclick="addNewLinkRow()">+ إضافة رابط جديد</button>
+</div>
+
+<script>
+    function addNewLinkRow() {
+        const container = document.getElementById('links_container');
+        if (container.children.length >= 8) {
+            alert('الحد الأقصى المسموح به هو 8 روابط فقط.');
+            return;
+        }
+        const div = document.createElement('div');
+        div.className = 'row g-2 mb-2 align-items-center link-row';
+        div.innerHTML = `
+            <div class="col-md-3">
+                <select name="link_type[]" class="form-select form-select-sm">
+                    <option value="summary_pdf">ملخص PDF</option>
+                    <option value="full_pdf">الكتاب كامل PDF</option>
+                    <option value="image">صورة توضيحية</option>
+                    <option value="podcast">بودكاست صوتي</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <input type="url" name="link_url[]" class="form-control form-control-sm" placeholder="https://example.com/file" required>
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="link_label[]" class="form-control form-control-sm" placeholder="عنوان اختياري">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="this.closest('.link-row').remove()">حذف</button>
+            </div>`;
+        container.appendChild(div);
+    }
+</script>

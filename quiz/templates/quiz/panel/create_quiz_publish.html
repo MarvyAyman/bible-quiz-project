@@ -1,50 +1,50 @@
 {% extends "quiz/panel/base_panel.html" %}
-{% block title %}نشر المسابقة{% endblock %}
+{% block title %}نشر المحتوى والمسابقة{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>{% if quiz.is_active %}المسابقة منشورة ✅{% else %}جاهزة للنشر 🚀{% endif %}</h1>
-    <p>{{ quiz.book_name }} - أصحاح {{ quiz.chapter_number }}{% if quiz.title %} ({{ quiz.title }}){% endif %} — {{ quiz.question_count }} سؤال</p>
+    <h1>{% if material.is_active %}المحتوى منشور حالياً ✅{% else %}جاهز للنشر والبث 🚀{% endif %}</h1>
+    <p>{{ material.get_category_display }} - {{ material.source_name }} - أصحاح/فصل {{ material.chapter_number }}{% if material.title %} ({{ material.title }}){% endif %}</p>
 </div>
 
-<div class="card publish-card">
+<div class="card publish-card" style="background: #fff; border: 1px solid var(--light-border); border-radius: 12px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
     <div class="form-field">
-        <label>رابط المسابقة</label>
-        <div class="link-row">
-            <input type="text" readonly value="{{ quiz_url }}" id="quiz-url-input">
-            <button type="button" class="btn btn-outline" onclick="copyQuizUrl()">📋 نسخ</button>
+        <label style="font-weight: bold; color: var(--text-color); display: block; margin-bottom: 10px;">🔗 الرابط المباشر للمشتركين:</label>
+        <div class="link-row" style="display: flex; gap: 10px; margin-top: 10px;">
+            <input type="text" readonly value="{{ quiz_url }}" id="quiz-url-input" style="flex: 1; padding: 12px; border-radius: 6px; border: 1px solid var(--light-border); text-align: left; direction: ltr; font-size: 1rem; background-color: #fafafa;">
+            <button type="button" class="btn btn-outline" onclick="copyQuizUrl()" style="padding: 10px 20px; font-weight: bold;">📋 نسخ الرابط</button>
         </div>
-        <span id="copy-feedback" class="copy-feedback"></span>
+        <span id="copy-feedback" style="color: var(--success); font-size: 0.85rem; display: block; margin-top: 8px; font-weight: bold;"></span>
     </div>
 
-    <form method="post" class="publish-actions">
+    <form method="post" class="publish-actions" style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
         {% csrf_token %}
-        {% if quiz.is_active %}
-            <span class="badge badge-success">المسابقة متاحة الآن للمشتركين</span>
-            <button type="submit" name="action" value="unpublish" class="btn btn-danger">إلغاء النشر</button>
+        {% if material.is_active %}
+            <span class="badge badge-success" style="background: var(--success-bg); color: var(--success); padding: 8px 15px; border-radius: 20px; font-weight: bold;">المسابقة متاحة الآن للمشتركين تلقائياً</span>
+            <button type="submit" name="action" value="unpublish" class="btn btn-danger" style="background-color: var(--danger); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">إلغاء النشر مؤقتاً</button>
         {% else %}
-            <span class="badge badge-muted">المسابقة غير منشورة بعد، لن تظهر للمشتركين</span>
-            <button type="submit" name="action" value="publish" class="btn">نشر المسابقة الآن</button>
+            <span class="badge badge-muted" style="background: #eee; color: #666; padding: 8px 15px; border-radius: 20px; font-weight: bold;">المحتوى حالياً مسودة، لن يظهر للمشتركين</span>
+            <button type="submit" name="action" value="publish" class="btn" style="background-color: var(--success); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">نشر وتفعيل الآن ✨</button>
         {% endif %}
     </form>
 </div>
 
-<div class="builder-actions">
+<div class="builder-actions" style="margin-top: 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
     <div>
-        <a href="{% url 'edit_existing_quiz' quiz.slug %}" class="btn btn-outline" style="margin-left: 10px;">🛠 تعديل أسئلة المسابقة</a>
-        <a href="{% url 'create_quiz_step1' %}" class="btn btn-outline">+ إنشاء مسابقة أخرى</a>
+        <a href="{% url 'edit_material' material.slug %}" class="btn" style="background-color: #a1887f; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-size: 0.95rem; margin-left: 10px; font-weight: bold;">🛠 العودة لتعديل البيانات والأسئلة</a>
+        <a href="{% url 'manage_materials' %}" class="btn btn-outline" style="text-decoration: none; padding: 10px 20px; border-radius: 6px; font-size: 0.95rem; font-weight: bold;">⚙️ إدارة كل المحتوى</a>
     </div>
-    <a href="{% url 'panel_dashboard' %}" class="btn btn-outline">العودة للوحة التحكم</a>
+    <a href="{% url 'panel_dashboard' %}" class="btn btn-outline" style="text-decoration: none; padding: 10px 20px; border-radius: 6px; font-size: 0.95rem; font-weight: bold;">العودة للوحة التحكم الرئيسي</a>
 </div>
 
 <script>
     function copyQuizUrl() {
         const input = document.getElementById('quiz-url-input');
         input.select();
-        navigator.clipboard.writeText(input.value).then(() => {
-            const feedback = document.getElementById('copy-feedback');
-            feedback.innerText = 'تم نسخ الرابط بنجاح! يمكنك الآن مشاركته.';
-            setTimeout(() => { feedback.innerText = ''; }, 4000);
-        });
+        navigator.clipboard.writeText(input.value);
+        
+        const feedback = document.getElementById('copy-feedback');
+        feedback.innerText = "✅ تم نسخ الرابط بنجاح! جاهز للمشاركة مع المشتركين.";
+        setTimeout(() => { feedback.innerText = ""; }, 4000);
     }
 </script>
 {% endblock %}

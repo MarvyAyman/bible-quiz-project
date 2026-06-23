@@ -1,0 +1,118 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}إدارة المحتوى{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>⚙️ إدارة المحتوى</h1>
+    <p>تعديل، حذف، أو التحكم في حالة نشر كل المحتوى — الكتاب المقدس، الكتب الروحية، واقرأ واعرف واكسب</p>
+</div>
+
+<style>
+    .filter-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-tab {
+        padding: 9px 18px; border: 2px solid var(--light-border); border-radius: 20px;
+        background: #fff; color: #8d6e63; font-family: inherit; font-size: 0.9rem;
+        font-weight: bold; cursor: pointer; transition: 0.2s; text-decoration: none; display: inline-block;
+    }
+    .filter-tab.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .filter-tab:hover:not(.active) { border-color: var(--gold); color: var(--dark-gold); }
+    .filter-tab .count { opacity: 0.75; font-size: 0.85em; margin-right: 4px; }
+</style>
+
+<div class="filter-tabs">
+    <a href="?category=all" class="filter-tab {% if category_filter == 'all' %}active{% endif %}">
+        الكل <span class="count">({{ counts.all }})</span>
+    </a>
+    <a href="?category=bible" class="filter-tab {% if category_filter == 'bible' %}active{% endif %}">
+        📖 كتاب مقدس <span class="count">({{ counts.bible }})</span>
+    </a>
+    <a href="?category=spiritual" class="filter-tab {% if category_filter == 'spiritual' %}active{% endif %}">
+        📚 كتاب روحي <span class="count">({{ counts.spiritual }})</span>
+    </a>
+    <a href="?category=iqraa" class="filter-tab {% if category_filter == 'iqraa' %}active{% endif %}">
+        📁 اقرأ واعرف واكسب <span class="count">({{ counts.iqraa }})</span>
+    </a>
+</div>
+
+<div class="card table-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0;">المحتوى المتاح</h3>
+    <div class="dropdown-container" style="position: relative; display: inline-block;">
+        <button type="button" class="btn" id="create-dropdown-btn" style="padding: 8px 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 5px;">
+             + محتوى جديد <span style="font-size: 0.75rem;">▼</span>
+        </button>
+        <div id="create-dropdown-menu" style="display: none; position: absolute; left: 0; top: 110%; background: #ffffff; min-width: 180px; box-shadow: 0px 8px 16px rgba(0,0,0,0.1); border: 1px solid var(--light-border); border-radius: 8px; z-index: 1000; text-align: right; overflow: hidden;">
+            <a href="{% url 'create_material_step1' %}?category=bible" style="display: block; padding: 10px 15px; color: var(--text-color); text-decoration: none; font-size: 0.9rem; border-bottom: 1px solid #f5f5f5; transition: background 0.2s;">📖 كتاب مقدس</a>
+            <a href="{% url 'create_material_step1' %}?category=spiritual" style="display: block; padding: 10px 15px; color: var(--text-color); text-decoration: none; font-size: 0.9rem; border-bottom: 1px solid #f5f5f5; transition: background 0.2s;">📚 كتاب روحي</a>
+            <a href="{% url 'create_material_step1' %}?category=iqraa" style="display: block; padding: 10px 15px; color: var(--text-color); text-decoration: none; font-size: 0.9rem; transition: background 0.2s;">📁 اقرأ واعرف واكسب</a>
+    </div>
+</div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>التصنيف</th>
+                <th>المحتوى</th>
+                <th>عدد الأسئلة</th>
+                <th>تاريخ الإنشاء</th>
+                <th>الحالة</th>
+                <th style="text-align: center;">الإجراءات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for material in materials %}
+            <tr>
+                <td><span class="badge badge-muted">{{ material.get_category_display }}</span></td>
+                <td><strong>{{ material.source_name }}</strong> - {{ material.chapter_number }}{% if material.title %} ({{ material.title }}){% endif %}</td>
+                <td>{{ material.question_count }} سؤال</td>
+                <td>{{ material.created_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                    {% if material.is_active %}
+                        <span class="badge badge-success">منشور ونشط</span>
+                    {% else %}
+                        <span class="badge badge-muted">مسودة غير منشورة</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: center;">
+                    <a href="{% url 'edit_material' material.slug %}" class="btn" style="padding: 6px 12px; font-size: 0.85rem; margin-left: 5px; background-color: #a1887f;">📝 تعديل</a>
+                    <form method="post" action="{% url 'material_publish_toggle' material.slug %}" style="display:inline;">
+                        {% csrf_token %}
+                        {% if material.is_active %}
+                            <button type="submit" name="action" value="unpublish" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem; margin-left: 5px;">إلغاء النشر</button>
+                        {% else %}
+                            <button type="submit" name="action" value="publish" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.85rem; margin-left: 5px;">نشر</button>
+                        {% endif %}
+                    </form>
+                    <a href="{% url 'delete_material' material.slug %}" class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85rem;" onclick="return confirm('هل أنتِ متأكدة من حذف هذا المحتوى تماماً؟')">🗑 حذف</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="empty-row">لا يوجد محتوى في هذا التصنيف بعد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    // كود لتشغيل وفتح وإغلاق القائمة المنسدلة بسلاسة
+    document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('create-dropdown-btn');
+        const menu = document.getElementById('create-dropdown-menu');
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        });
+
+        // إغلاق القائمة تلقائياً إذا تم الضغط في أي مكان خارجها
+        document.addEventListener('click', () => {
+            menu.style.display = 'none';
+        });
+
+        // إضافة تأثير الحوام (Hover) لعناصر القائمة
+        menu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('mouseover', () => link.style.backgroundColor = '#fdfbf7');
+            link.addEventListener('mouseout', () => link.style.backgroundColor = '#ffffff');
+        });
+    });
+</script>
+{% endblock %}

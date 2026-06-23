@@ -1,0 +1,480 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}{% if material %}تعديل محتوى{% else %}إنشاء محتوى جديد{% endif %}{% endblock %}
+
+{% block content %}
+<style>
+    /* تنسيقات عامة لضبط المحاذاة والعرض الكلي مع الـ Toggles */
+    .form-container-aligned {
+        max-width: 100%;
+        margin: 0 auto;
+    }
+    
+    .builder-actions {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 25px;
+        background: transparent;
+        padding: 0;
+    }
+    
+    .builder-actions .btn {
+        flex: 1;
+        margin: 0;
+        padding: 12px;
+        font-size: 1.05rem;
+        font-weight: bold;
+        border-radius: 8px;
+    }
+
+    .form-card-aligned {
+        background: #fff;
+        border: 1px solid var(--light-border);
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+
+    /* تنسيقات حقل رابط الـ PDF المخصص للكتاب المقدس والروحي - مطابق لـ image_8e81fe.png */
+    .single-pdf-container {
+        margin-top: 25px;
+        margin-bottom: 15px;
+        text-align: right;
+        direction: rtl;
+    }
+    .single-pdf-container label {
+        color: #b38646;
+        font-weight: bold;
+        font-size: 1.1rem;
+        display: block;
+        margin-bottom: 10px;
+    }
+    .single-pdf-container input[type="url"] {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-size: 1rem;
+        direction: rtl;
+        box-sizing: border-box;
+    }
+
+    /* تنسيقات منطقة الروابط المتعددة المتقدمة لقسم اقرأ */
+    .links-management-container {
+        border: 2px dashed #bfa15f;
+        padding: 20px;
+        border-radius: 12px;
+        background-color: #fdfbf7;
+        margin-top: 25px;
+        margin-bottom: 25px;
+    }
+    .link-row-item {
+        background: #fff;
+        border: 1px solid #e1d8c3;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 15px;
+        display: flex;
+        gap: 20px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+    .link-row-item .form-field {
+        margin-bottom: 0;
+        flex: 1;
+        min-width: 200px;
+    }
+    .link-row-item .form-field label {
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #333;
+    }
+    .link-row-item input, .link-row-item select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+    }
+    .remove-link-btn {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        height: 42px;
+        transition: background 0.2s;
+    }
+    .remove-link-btn:hover {
+        background-color: #c0392b;
+    }
+
+    /* ستايل صندوق الإرشادات الجديد تماماً والمطابق للصورة المرفقة */
+    .instruction-box-custom {
+        background-color: #fff;
+        border: 2px solid #deb887;
+        border-radius: 16px;
+        padding: 25px;
+        margin-top: 25px;
+        box-shadow: 0 4px 10px rgba(222, 184, 135, 0.1);
+        position: relative;
+    }
+    .instruction-box-custom h4 {
+        color: #b38646;
+        font-size: 1.2rem;
+        margin-top: 0;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: bold;
+    }
+    .instruction-code-panel {
+        background-color: #faf8f5;
+        border-radius: 10px;
+        padding: 15px 20px;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 1.05rem;
+        line-height: 1.7;
+        color: #4a4a4a;
+        direction: rtl;
+        white-space: pre-line;
+        border: 1px solid #f0e6df;
+        margin-bottom: 15px;
+    }
+    .instruction-box-custom p.footer-text {
+        font-size: 0.95rem;
+        color: #666;
+        margin: 0;
+        line-height: 1.6;
+    }
+</style>
+
+<div class="form-container-aligned">
+    <div class="page-header">
+        <h1>{% if material %}🛠 تعديل المحتوى{% else %}✨ إنشاء محتوى جديد{% endif %} ({{ category_label }})</h1>
+        <p>ادخلي البيانات والنص المكتوب، وراجعي الأسئلة فوراً في نفس الصفحة قبل الحفظ النهائي</p>
+    </div>
+
+    <!-- الـ Toggles العلوية المتناسقة العرض تماماً -->
+    <div class="builder-actions">
+        <button type="button" id="tab-write-btn" class="btn" style="background-color: #d4af37; color: #fff;" onclick="switchTab('write')">📝 البيانات ونص الأسئلة</button>
+        <button type="button" id="tab-preview-btn" class="btn btn-outline" onclick="switchTab('preview')">👁️ المعاينة الفورية والمراجعة</button>
+    </div>
+
+    <form id="material-unified-form" method="post">
+        {% csrf_token %}
+        
+        <!-- قسم كتابة البيانات والأسئلة -->
+        <div id="section-write" class="form-card-aligned">
+            <div class="form-grid">
+                <div class="form-field">
+                    <label for="id_source_name">
+                        {% if category == 'bible' %}اسم السفر:{% elif category == 'spiritual' %}اسم الكتاب الروحي:{% else %}اسم مسابقة اقرأ:{% endif %}
+                    </label>
+                    <input type="text" id="id_source_name" name="source_name" value="{% if material %}{{ material.source_name }}{% endif %}" required placeholder="مثال: تكوين، أو حياة الصلاة...">
+                </div>
+                
+                <div class="form-field">
+                    <label for="id_chapter_number">رقم الأصحاح / الفصل / الجزء:</label>
+                    <input type="number" id="id_chapter_number" name="chapter_number" value="{% if material %}{{ material.chapter_number }}{% else %}1{% endif %}" required min="1">
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label for="id_title">عنوان فرعي إضافي (اختياري):</label>
+                <input type="text" id="id_title" name="title" value="{% if material %}{{ material.title }}{% endif %}" placeholder="مثال: قصة يوسف الصديق...">
+            </div>
+
+            <!-- قسم الروابط الديناميكي المحدث بالكامل -->
+            {% if category == 'bible' or category == 'spiritual' %}
+                <div class="single-pdf-container">
+                    <label for="id_single_pdf_url">🔗 رابط ملف الـ PDF المرفق بالمادة:</label>
+                    <input type="url" id="id_single_pdf_url" name="link_url[]" value="{% if existing_links %}{{ existing_links.0.url }}{% endif %}" placeholder="ضعِ رابط الـ PDF المباشر هنا (اختياري)...">
+                    <input type="hidden" name="link_type[]" value="pdf">
+                    <input type="hidden" name="link_label[]" value="تحميل الملف المرفق">
+                </div>
+            {% else %}
+                <div class="links-management-container">
+                    <h3 style="margin-top: 0; color: #b38646; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
+                        <span>📂 المرفقات والروابط الإرشادية للمسابقة (صوت / صورة / PDF)</span>
+                        <button type="button" class="btn" style="padding: 6px 15px; font-size: 0.85rem; background-color: #d4af37; color:#fff;" onclick="addNewLinkRow()">➕ إضافة رابط جديد</button>
+                    </h3>
+                    <div id="links-rows-wrapper">
+                        {% if existing_links %}
+                            {% for link in existing_links %}
+                                <div class="link-row-item">
+                                    <div class="form-field" style="flex: 1;">
+                                        <label>نوع المرفق:</label>
+                                        <select name="link_type[]">
+                                            <option value="pdf" {% if link.link_type == 'pdf' %}selected{% endif %}>📄 ملف PDF</option>
+                                            <option value="audio" {% if link.link_type == 'audio' %}selected{% endif %}>🔊 ملف صوتي (Audio)</option>
+                                            <option value="image" {% if link.link_type == 'image' %}selected{% endif %}>🖼️ صورة توضيحية (Image)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-field" style="flex: 1.5;">
+                                        <label>عنوان الرابط (الظاهر للمشترك):</label>
+                                        <input type="text" name="link_label[]" value="{{ link.label }}" placeholder="مثال: استمع للملف الصوتي">
+                                    </div>
+                                    <div class="form-field" style="flex: 2;">
+                                        <label>رابط الـ URL:</label>
+                                        <input type="url" name="link_url[]" value="{{ link.url }}" required placeholder="https://example.com/file-url">
+                                    </div>
+                                    <button type="button" class="remove-link-btn" onclick="removeLinkRow(this)">🗑️ حذف</button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="form-field" style="margin-top: 25px;">
+                <label for="id_raw_text" style="font-weight: bold;">صبي نص الأسئلة هنا بالتنسيق الذكي المحدث:</label>
+                <textarea id="id_raw_text" rows="14" style="direction: rtl; font-family: 'Courier New', monospace; font-size: 1rem; padding: 15px; border-radius: 8px; border: 1px solid #ccc;" placeholder="1- نص السؤال الأول هنا
+ا- الاختيار الأول
+ب- الاختيار الثاني
+ج- الاختيار الثالث
+د- الاختيار الرابع
+ج: ا
+التفسير: نص التفسير هنا..."></textarea>
+            </div>
+            
+            <div class="instruction-box-custom">
+                <h4>📋 التنسيق المطلوب لكل سؤال</h4>
+                <div class="instruction-code-panel">1- نص السؤال
+ا- الاختيار الأول
+ب- الاختيار الثاني
+ج- الاختيار الثالث
+د- الاختيار الرابع
+ج: ا
+التفسير: نص التفسير هنا</div>
+                <p class="footer-text">كرّر هذا النمط لكل سؤال (1-، 2-، 3-...)، ويمكنكِ وضع حتى 8 خيارات للسؤال الواحد (من ا- إلى ح-)، وسيتم التعرف عليها ومعاينتها تلقائياً.</p>
+            </div>
+        </div>
+
+        <!-- قسم المعاينة الفورية للأسئلة -->
+        <div id="section-preview" class="form-card-aligned" style="display: none;">
+            <h3 style="color: #b38646; border-bottom: 2px solid #deb887; padding-bottom: 10px; margin-top: 0;">👁️ مراجعة الأسئلة قبل الحفظ</h3>
+            <div id="dynamic-questions-preview-container"></div>
+        </div>
+        
+        <!-- الحقول المخفية الممررة للخلفية ديناميكياً وعنصر الحفظ الثابت بالخارج ليظهر في التبويبين -->
+        <div id="hidden-inputs-container"></div>
+
+
+        <div style="margin-top: 30px; text-align: left;">
+            <button type="submit" class="btn" style="background-color: var(--success); font-size: 1.1rem; padding: 12px 40px; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">💾 حفظ المحتوى والأسئلة نهائياً</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    const existingQuestions = {{ questions_json|safe }};
+    const currentCategory = "{{ category }}";
+    const optionKeysOrdered = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const arabicLabelsMapping = { a: 'أ', b: 'ب', c: 'ج', d: 'د', e: 'هـ', f: 'و', g: 'ز', h: 'ح' };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (currentCategory === 'iqraa') {
+            const wrapper = document.getElementById('links-rows-wrapper');
+            if (wrapper && wrapper.children.length === 0) {
+                addNewLinkRow();
+            }
+        }
+
+        if (existingQuestions && existingQuestions.length > 0) {
+            let rawTextBuilder = "";
+            existingQuestions.forEach((q, idx) => {
+                rawTextBuilder += `${idx + 1}- ${q.text}\n`;
+                optionKeysOrdered.forEach(k => {
+                    if (q.choices && q.choices[k]) {
+                        rawTextBuilder += `${arabicLabelsMapping[k]}- ${q.choices[k]}\n`;
+                    }
+                });
+                rawTextBuilder += `ج: ${arabicLabelsMapping[q.correct] || 'ا'}\n`;
+                if(q.explanation) rawTextBuilder += `التفسير: ${q.explanation}\n`;
+                rawTextBuilder += "\n";
+            });
+            document.getElementById('id_raw_text').value = rawTextBuilder.trim();
+        }
+    });
+
+    function addNewLinkRow() {
+        const wrapper = document.getElementById('links-rows-wrapper');
+        const rowId = Date.now();
+        const rowHtml = `
+            <div class="link-row-item" id="link-row-${rowId}">
+                <div class="form-field">
+                    <label>نوع المرفق:</label>
+                    <select name="link_type[]">
+                        <option value="pdf">📄 ملف PDF</option>
+                        <option value="audio">🔊 ملف صوتي (Audio)</option>
+                        <option value="image">🖼️ صورة توضيحية (Image)</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>عنوان الرابط (الظاهر للمشترك):</label>
+                    <input type="text" name="link_label[]" placeholder="مثال: استمع للملف الصوتي">
+                </div>
+                <div class="form-field">
+                    <label>رابط الـ URL:</label>
+                    <input type="url" name="link_url[]" required placeholder="https://example.com/file-url">
+                </div>
+                <button type="button" class="remove-link-btn" onclick="removeLinkRow(this)">🗑️ حذف</button>
+            </div>
+        `;
+        wrapper.insertAdjacentHTML('beforeend', rowHtml);
+    }
+
+    function removeLinkRow(buttonElement) {
+        buttonElement.closest('.link-row-item').remove();
+    }
+
+    function switchTab(tabName) {
+        const tabWriteBtn = document.getElementById('tab-write-btn');
+        const tabPreviewBtn = document.getElementById('tab-preview-btn');
+        const secWrite = document.getElementById('section-write');
+        const secPreview = document.getElementById('section-preview');
+        
+        // تحديث المعاينة تلقائياً في كل مرة يتم فيها التبديل أو البقاء للمزامنة الفورية قبل الإرسال
+        processAndRenderPreview();
+
+        if (tabName === 'write') {
+            tabWriteBtn.style.backgroundColor = "#d4af37";
+            tabWriteBtn.style.color = "#fff";
+            tabPreviewBtn.className = "btn btn-outline";
+            tabPreviewBtn.style.backgroundColor = "transparent";
+            tabPreviewBtn.style.color = "var(--gold)";
+            secWrite.style.display = "block";
+            secPreview.style.display = "none";
+        } else {
+            tabWriteBtn.className = "btn btn-outline";
+            tabWriteBtn.style.backgroundColor = "transparent";
+            tabWriteBtn.style.color = "var(--gold)";
+            tabPreviewBtn.style.backgroundColor = "#d4af37";
+            tabPreviewBtn.style.color = "#fff";
+            secWrite.style.display = "none";
+            secPreview.style.display = "block";
+        }
+    }
+
+    function parseQuizTextClient(text) {
+        if (!text) return [];
+        const blocks = text.split(/\n\s*\n/);
+        const questions = [];
+        
+        blocks.forEach(block => {
+            const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length === 0) return;
+            
+            let questionText = "";
+            let explanation = "";
+            let correctKey = "a";
+            const choices = { a: "", b: "", c: "", d: "", e: "", f: "", g: "", h: "" };
+            
+            const firstLine = lines[0];
+            questionText = firstLine.replace(/^\d+[-–\s]*/, '').trim();
+            
+            lines.slice(1).forEach(line => {
+                if (line.startsWith('ج:')) {
+                    const ansLetter = line.replace(/^ج\s*:\s*/, '').trim();
+                    if (ansLetter === 'ا' || ansLetter === 'أ') correctKey = 'a';
+                    else if (ansLetter === 'ب') correctKey = 'b';
+                    else if (ansLetter === 'ج') correctKey = 'c';
+                    else if (ansLetter === 'د') correctKey = 'd';
+                    else if (ansLetter === 'هـ' || ansLetter === 'ه') correctKey = 'e';
+                    else if (ansLetter === 'و') correctKey = 'f';
+                    else if (ansLetter === 'ز') correctKey = 'g';
+                    else if (ansLetter === 'ح') correctKey = 'h';
+                } else if (line.startsWith('التفسير:')) {
+                    explanation = line.replace(/^التفسير\s*:\s*/, '').trim();
+                } else {
+                    let key = null;
+                    
+                    if (line.startsWith('ا-') || line.startsWith('أ-')) key = 'a';
+                    else if (line.startsWith('ب-')) key = 'b';
+                    else if (line.startsWith('ج-')) key = 'c';
+                    else if (line.startsWith('د-')) key = 'd';
+                    else if (line.startsWith('هـ-') || line.startsWith('ه-')) key = 'e';
+                    else if (line.startsWith('و-')) key = 'f';
+                    else if (line.startsWith('ز-')) key = 'g';
+                    else if (line.startsWith('ح-')) key = 'h';
+                    
+                    if (key) {
+                        choices[key] = line.replace(/^[ابجأدبـهوزح]\s*(-|—)\s*/, '').trim();
+                    }
+                }
+            });
+            
+            if (questionText) {
+                questions.push({ text: questionText, choices: choices, correct: correctKey, explanation: explanation });
+            }
+        });
+        return questions;
+    }
+
+    function processAndRenderPreview() {
+        const rawText = document.getElementById('id_raw_text').value;
+        const parsedQuestions = parseQuizTextClient(rawText);
+        
+        const previewContainer = document.getElementById('dynamic-questions-preview-container');
+        const hiddenContainer = document.getElementById('hidden-inputs-container');
+        
+        previewContainer.innerHTML = "";
+        hiddenContainer.innerHTML = "";
+        
+        if (parsedQuestions.length === 0) {
+            previewContainer.innerHTML = "<p class='empty-row'>⚠️ الرجاء إدخال أسئلة صالحة أولاً في قسم نص الأسئلة لرؤية المعاينة.</p>";
+            return;
+        }
+        
+        parsedQuestions.forEach((q, i) => {
+            const qCard = document.createElement('div');
+            qCard.className = 'question-card card';
+            
+            let choicesHtml = "";
+            optionKeysOrdered.forEach(k => {
+                if (q.choices[k]) {
+                    const isCorrect = (q.correct === k);
+                    choicesHtml += `
+                        <div class="choice-row ${isCorrect ? 'correct' : ''}">
+                            <span class="choice-letter">${arabicLabelsMapping[k]}</span>
+                            <span style="font-size:0.95rem; font-weight:${isCorrect ? 'bold' : 'normal'}">${q.choices[k]} ${isCorrect ? '✅' : ''}</span>
+                        </div>
+                    `;
+                }
+            });
+            
+            qCard.innerHTML = `
+                <div class="question-card-header">
+                    <span class="question-number">سؤال ${i + 1}</span>
+                </div>
+                <p style="font-weight:bold; font-size:1.05rem; margin: 0 0 15px 0;">${q.text}</p>
+                <div class="choices-grid">${choicesHtml}</div>
+                ${q.explanation ? `<p style="margin: 10px 0 0; font-size: 0.88rem; color: #7a6f5d; background: #fffcf5; padding: 8px; border-radius: 6px;">💡 <b>الشرح التوضيحي:</b> ${q.explanation}</p>` : ''}
+            `;
+            previewContainer.appendChild(qCard);
+            
+            const addHiddenInput = (name, value) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                hiddenContainer.appendChild(input);
+            };
+            
+            addHiddenInput(`q${i}_text`, q.text);
+            addHiddenInput(`q${i}_explanation`, q.explanation);
+            addHiddenInput(`q${i}_correct`, q.correct);
+            optionKeysOrdered.forEach(k => {
+                addHiddenInput(`q${i}_choice_${k}`, q.choices[k] || "");
+            });
+        });
+    }
+
+    // تفعيل وتحديث المزامنة الخلفية تلقائياً عند الضغط المباشر على زر الحفظ من أي تبويب
+    document.getElementById('material-unified-form').addEventListener('submit', function(e) {
+        processAndRenderPreview();
+    });
+</script>
+{% endblock %}

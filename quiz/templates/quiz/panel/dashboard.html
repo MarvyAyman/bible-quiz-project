@@ -94,7 +94,7 @@
             {% for hq in hardest_questions %}
             <tr>
                 <td>{{ hq.question_short }}</td>
-                <td>{{ hq.question__quiz__book_name }} - أصحاح {{ hq.question__quiz__chapter_number }}</td>
+                <td>{{ hq.question__material__source_name }} - أصحاح {{ hq.question__material__chapter_number }}</td>
                 <td>{{ hq.wrong_count }}</td>
                 <td><span class="badge badge-danger">{{ hq.wrong_percentage }}%</span></td>
             </tr>

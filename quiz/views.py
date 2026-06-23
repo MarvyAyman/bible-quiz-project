@@ -3,32 +3,39 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.models import User
-from django.db.models import Avg, Count, Max, Min, OuterRef, Subquery, Window, F
+from django.contrib.auth import login
+from django.db.models import Avg, Count
+from django.utils.text import slugify
 from django.conf import settings
-from .models import Quiz, Question, QuestionChoice, Score, QuestionResponse
+from .models import Material, MaterialLink, Question, QuestionChoice, Score, QuestionResponse
 import json
 import re
 import jwt
 from urllib.parse import unquote
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models.functions import RowNumber
-from urllib.parse import unquote
+
+ALL_CHOICE_KEYS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+CHOICE_KEY_LABELS = {'a': 'أ', 'b': 'ب', 'c': 'ج', 'd': 'د', 'e': 'هـ', 'f': 'و', 'g': 'ز', 'h': 'ح'}
+
+CATEGORY_LABELS = {
+    'bible': '📖 كتاب مقدس',
+    'spiritual': '📚 كتاب روحي',
+    'iqraa': '📁 اقرأ واعرف واكسب',
+}
+
 
 def decode_url_slug(url_string):
     return unquote(url_string)
 
-# All valid choice keys in order
-ALL_CHOICE_KEYS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-CHOICE_KEY_LABELS = {'a': 'أ', 'b': 'ب', 'c': 'ج', 'd': 'د', 'e': 'هـ', 'f': 'و', 'g': 'ز', 'h': 'ح'}
 
 # ---------------------------------------------------------------------------
-# Public / subscriber views
+# Public / subscriber views (الواجهة العامة للمشتركين)
 # ---------------------------------------------------------------------------
 
 def index_view(request):
-    quizzes = Quiz.objects.filter(is_active=True).order_by('book_name', 'chapter_number')
+    materials = Material.objects.filter(is_active=True).order_by('category', 'chapter_number')
     context = {
-        'quizzes': quizzes,
+        'materials': materials,
         'SUPABASE_URL': settings.SUPABASE_URL,
         'SUPABASE_ANON_KEY': settings.SUPABASE_ANON_KEY,
     }
@@ -37,24 +44,22 @@ def index_view(request):
 
 def quiz_view(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
-    quiz = get_object_or_404(Quiz, slug=quiz_slug, is_active=True)
+    material = get_object_or_404(Material, slug=quiz_slug, is_active=True)
     questions_data = []
-    for q in quiz.questions.prefetch_related('choices').all():
-        choices = [
-            {'key': c.key, 'text': c.text}
-            for c in q.choices.all()
-        ]
-        correct_choice = q.first_correct_key
+    
+    for q in material.questions.prefetch_related('choices').all():
+        choices = [{'key': c.key, 'text': c.text} for c in q.choices.all()]
         questions_data.append({
             'id': q.id,
             'text': q.text,
             'choices': choices,
-            'correct': correct_choice,
+            'correct': next((c.key for c in q.choices.all() if c.is_correct), 'a'),
             'explanation': q.explanation,
         })
 
     context = {
-        'quiz': quiz,
+        'material': material,
+        'links': material.links.all(),  # جلب الروابط الديناميكية المرفقة بالمادة
         'questions_data': questions_data,
         'SUPABASE_URL': settings.SUPABASE_URL,
         'SUPABASE_ANON_KEY': settings.SUPABASE_ANON_KEY,
@@ -66,19 +71,14 @@ def quiz_view(request, quiz_slug):
 @require_POST
 def submit_score(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
-    quiz = get_object_or_404(Quiz, slug=quiz_slug, is_active=True)
+    material = get_object_or_404(Material, slug=quiz_slug, is_active=True)
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return JsonResponse({'status': 'error', 'message': 'غير مصرح به'}, status=401)
 
     token = auth_header.split(' ')[1]
-
     try:
-        payload = jwt.decode(
-            token,
-            options={"verify_signature": False},
-            algorithms=["HS256"],
-        )
+        payload = jwt.decode(token, options={"verify_signature": False}, algorithms=["HS256"])
         supabase_uid = payload['sub']
         email = payload.get('email', f"{supabase_uid}@supabase.local")
         user_metadata = payload.get('user_metadata', {})
@@ -87,9 +87,10 @@ def submit_score(request, quiz_slug):
         return JsonResponse({'status': 'error', 'message': 'رمز غير صالح'}, status=401)
 
     user, _created = User.objects.get_or_create(
-        username=supabase_uid,
-        defaults={'email': email, 'first_name': full_name}
+        username=supabase_uid, defaults={'email': email, 'first_name': full_name}
     )
+
+    login(request, user)
 
     try:
         data = json.loads(request.body)
@@ -100,7 +101,7 @@ def submit_score(request, quiz_slug):
     except (ValueError, TypeError, json.JSONDecodeError):
         return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
 
-    questions = {q.id: q for q in quiz.questions.prefetch_related('choices').all()}
+    questions = {q.id: q for q in material.questions.prefetch_related('choices').all()}
     score_value = 0
     response_rows = []
 
@@ -110,24 +111,17 @@ def submit_score(request, quiz_slug):
             selected_choice = answer.get('selected_choice')
         except (TypeError, ValueError, AttributeError):
             continue
-
         question = questions.get(question_id)
         if not question or selected_choice not in ALL_CHOICE_KEYS:
             continue
-
         is_correct = question.choices.filter(key=selected_choice, is_correct=True).exists()
         if is_correct:
             score_value += 1
-
         response_rows.append((question, selected_choice, is_correct))
 
     score = Score.objects.create(
-        user=user,
-        quiz=quiz,
-        score_value=score_value,
-        time_taken_seconds=time_taken_seconds,
+        user=user, material=material, score_value=score_value, time_taken_seconds=time_taken_seconds,
     )
-
     QuestionResponse.objects.bulk_create([
         QuestionResponse(score=score, question=q, selected_choice=c, is_correct=ic)
         for q, c, ic in response_rows
@@ -136,75 +130,71 @@ def submit_score(request, quiz_slug):
     return JsonResponse({
         'status': 'success',
         'score_value': score_value,
-        'total_questions': quiz.question_count,
-        'redirect_url': reverse('leaderboard_view', args=[quiz.slug]),
+        'total_questions': material.questions.count(),
+        'redirect_url': reverse('leaderboard_view', args=[material.slug]),
     })
-
 
 
 def leaderboard_view(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
-    quiz = get_object_or_404(Quiz, slug=quiz_slug)
+    material = get_object_or_404(Material, slug=quiz_slug)
 
-    # 1. استعلام ذكي لجلب أفضل درجة وأسرع وقت لكل مستخدم فريد (Distinct User) داخل هذه المسابقة
-    # نستخدم Subquery لجلب المعرف الفريد (ID) لأفضل محاولة لكل مستخدم
-    best_score_ids = Score.objects.filter(
-        quiz=quiz,
-        user_id=OuterRef('user_id')
-    ).order_by('-score_value', 'time_taken_seconds').values('id')[:1]
+    current_user_uid = request.GET.get('uid', '')  
 
-    # جلب السجلات الكاملة الفريدة بناءً على الـ Subquery
-    unique_scores = Score.objects.filter(
-        id__in=Subquery(
-            Score.objects.filter(quiz=quiz)
-            .values('user_id')
-            .annotate(best_id=Subquery(best_score_ids))
-            .values('best_id')
-        )
-    ).select_related('user').order_by('-score_value', 'time_taken_seconds')
+    seen_users = set()
+    all_ranked = []
 
-    # 2. حساب الترتيب (Rank) لجميع المتسابقين ديناميكياً لتحديد موضع المستخدم الحالي
-    # نقوم بعمل Loop بسيط لإضافة الترتيب وصيغة الوقت للـ 10 الأوائل والبحث عن المستخدم الحالي
-    top_scores = []
-    user_score_entry = None
-    user_rank = None
+    for score in Score.objects.filter(material=material).select_related('user').order_by('-score_value', 'time_taken_seconds'):
+        if score.user_id not in seen_users:
+            seen_users.add(score.user_id)
+            minutes = score.time_taken_seconds // 60
+            seconds = score.time_taken_seconds % 60
+            score.formatted_time = f"{minutes:02d}:{seconds:02d}"
+            all_ranked.append(score)
 
-    for index, score in enumerate(unique_scores, start=1):
-        # تنسيق الوقت ليكون MM:SS
-        minutes = score.time_taken_seconds // 60
-        seconds = score.time_taken_seconds % 60
-        score.formatted_time = f"{minutes:02d}:{seconds:02d}"
-        score.rank = index  # إسناد الترتيب الرقمي
+    top_scores = all_ranked[:10]
 
-        # جلب الـ 10 الأوائل فقط للوحة
-        if index <= 10:
-            top_scores.append(score)
+    current_user_rank = None
+    current_user_score = None
+    current_user_time = None
+    current_user_name = None
 
-        # التحقق إذا كان هذا السجل يخص المستخدم الحالي المسجل دخوله
-        if request.user.is_authenticated and score.user_id == request.user.id:
-            user_score_entry = score
-            user_rank = index
-            
-            # إذا وصلنا للـ 10 الأوائل وعثرنا على المستخدم الحالي، يمكننا إنهاء الـ Loop مبكراً
-            if index >= 10:
+    if current_user_uid:
+        for idx, score in enumerate(all_ranked):
+            if score.user.username == current_user_uid:
+                rank = idx + 1
+                if rank > 10:
+                    current_user_rank = rank
+                    current_user_score = score.score_value
+                    current_user_time = score.formatted_time
+                    current_user_name = score.user.first_name if score.user.first_name else score.user.username
                 break
 
-    # تحديد ما إذا كان المستخدم الحالي خارج العشرة الأوائل لعرضه في شريط منفصل
-    show_current_user_bottom = False
-    if user_score_entry and user_rank > 10:
-        show_current_user_bottom = True
-
-    context = {
-        'quiz': quiz,
+    return render(request, 'quiz/leaderboard.html', {
+        'material': material,
         'leaderboard': top_scores,
-        'total_questions': quiz.question_count,
-        'user_score_entry': user_score_entry,
-        'show_current_user_bottom': show_current_user_bottom,
-    }
-    return render(request, 'quiz/leaderboard.html', context)
+        'current_user_uid': current_user_uid,
+        'current_user_rank': current_user_rank,
+        'current_user_score': current_user_score,
+        'current_user_time': current_user_time,
+        'current_user_name': current_user_name,
+    })
+
+
+def materials_list_client(request, category):
+    """عرض قائمة المحتوى النشط للجمهور (المشتركين) بناءً على التصنيف"""
+    materials = Material.objects.filter(is_active=True, category=category).order_by('source_name', 'chapter_number')
+    category_title = CATEGORY_LABELS.get(category, "قائمة المسابقات")
+    
+    return render(request, 'quiz/materials_list.html', {
+        'materials': materials,
+        'category': category,
+        'category_title': category_title
+    })
+
 
 # ---------------------------------------------------------------------------
-# Text -> quiz structure parser
+# Text -> quiz structure parser (المفسر الخلفي الاختياري للملفات)
 # ---------------------------------------------------------------------------
 
 ARABIC_LETTER_TO_KEY = {'ا': 'a', 'أ': 'a', 'ب': 'b', 'ج': 'c', 'د': 'd'}
@@ -221,11 +211,11 @@ def _finalize_question(question):
         for key in ['a', 'b', 'c', 'd']
         if raw_choices.get(key, '').strip()
     ]
-    # Ensure at least a and b exist even if empty
     existing_keys = [c['key'] for c in question['choices']]
     for key in ['a', 'b']:
         if key not in existing_keys:
-            question['choices'].insert(['a', 'b'].index(key), {
+            idx = 0 if key == 'a' else min(1, len(question['choices']))
+            question['choices'].insert(idx, {
                 'key': key, 'label': CHOICE_KEY_LABELS[key], 'value': ''
             })
     return question
@@ -236,7 +226,7 @@ def parse_quiz_text(raw_text):
     current = None
     collecting = None
 
-    for raw_line in raw_text.splitlines():
+    for raw_line in (raw_text or '').splitlines():
         line = raw_line.strip()
         if not line:
             continue
@@ -293,8 +283,9 @@ def extract_text_from_file(uploaded_file):
         return '\n'.join(p.text for p in document.paragraphs)
     return uploaded_file.read().decode('utf-8', errors='ignore')
 
+
 # ---------------------------------------------------------------------------
-# Panel (staff-only) views
+# Panel / Dashboard (staff-only) views (لوحة التحكم والإدارة)
 # ---------------------------------------------------------------------------
 
 def panel_dashboard(request):
@@ -306,27 +297,27 @@ def panel_dashboard(request):
     seconds = int(avg_time_seconds % 60)
     avg_time_formatted = f"{minutes:02d}:{seconds:02d}"
 
-    quizzes = Quiz.objects.all()
+    materials = Material.objects.all()
     overall_correct = QuestionResponse.objects.filter(is_correct=True).count()
     overall_total = QuestionResponse.objects.count()
     overall_avg_percentage = round((overall_correct / overall_total * 100)) if overall_total > 0 else 0
 
-    for q in quizzes:
-        q.attempts = Score.objects.filter(quiz=q).count()
-        q.num_questions = q.questions.count()
+    for m in materials:
+        m.attempts = Score.objects.filter(material=m).count()
+        m.num_questions = m.questions.count()
 
-        q_avg_time = Score.objects.filter(quiz=q).aggregate(avg=Avg('time_taken_seconds'))['avg'] or 0
-        q_mins = int(q_avg_time // 60)
-        q_secs = int(q_avg_time % 60)
-        q.avg_time_formatted = f"{q_mins:02d}:{q_secs:02d}"
+        m_avg_time = Score.objects.filter(material=m).aggregate(avg=Avg('time_taken_seconds'))['avg'] or 0
+        m_mins = int(m_avg_time // 60)
+        m_secs = int(m_avg_time % 60)
+        m.avg_time_formatted = f"{m_mins:02d}:{m_secs:02d}"
 
-        q_correct = QuestionResponse.objects.filter(question__quiz=q, is_correct=True).count()
-        q_total_resp = QuestionResponse.objects.filter(question__quiz=q).count()
-        q.avg_percentage = round((q_correct / q_total_resp * 100)) if q_total_resp > 0 else None
-        q.avg_score = Score.objects.filter(quiz=q).aggregate(avg=Avg('score_value'))['avg']
+        m_correct = QuestionResponse.objects.filter(question__material=m, is_correct=True).count()
+        m_total_resp = QuestionResponse.objects.filter(question__material=m).count()
+        m.avg_percentage = round((m_correct / m_total_resp * 100)) if m_total_resp > 0 else None
+        m.avg_score = Score.objects.filter(material=m).aggregate(avg=Avg('score_value'))['avg']
 
     hardest_qs = QuestionResponse.objects.filter(is_correct=False) \
-        .values('question_id', 'question__text', 'question__quiz__book_name', 'question__quiz__chapter_number') \
+        .values('question_id', 'question__text', 'question__material__source_name', 'question__material__chapter_number') \
         .annotate(wrong_count=Count('id')) \
         .order_by('-wrong_count')[:5]
 
@@ -340,220 +331,213 @@ def panel_dashboard(request):
         'total_attempts': total_attempts,
         'avg_time_formatted': avg_time_formatted,
         'overall_avg_percentage': overall_avg_percentage,
-        'quizzes': quizzes,
+        'materials': materials,
         'hardest_questions': hardest_qs,
-        'active_tab': 'dashboard',
+        'active': 'dashboard',
     }
     return render(request, 'quiz/panel/dashboard.html', context)
 
 
-def manage_quizzes(request):
-    quizzes = Quiz.objects.all().order_by('-created_at')
-    return render(request, 'quiz/panel/manage_quizzes.html', {
-        'quizzes': quizzes,
-        'active_tab': 'manage_quizzes'
+def manage_materials(request):
+    """عرض جدول إدارة كل المواد المرفوعة مع الفلترة الذكية"""
+    category = request.GET.get('category', 'all')
+    if category and category != 'all':
+        materials = Material.objects.filter(category=category).order_by('-id')
+    else:
+        materials = Material.objects.all().order_by('-id')
+        
+    counts = {
+        'all': Material.objects.count(),
+        'bible': Material.objects.filter(category='bible').count(),
+        'spiritual': Material.objects.filter(category='spiritual').count(),
+        'iqraa': Material.objects.filter(category='iqraa').count(),
+    }
+    
+    return render(request, 'quiz/panel/manage_materials.html', {
+        'materials': materials,
+        'current_category': category,
+        'counts': counts,
+        'active': 'manage_materials',
     })
 
 
-def delete_quiz(request, quiz_slug):
+def delete_material(request, quiz_slug):
     quiz_slug = unquote(quiz_slug)
-    quiz = get_object_or_404(Quiz, slug=quiz_slug)
-    quiz.delete()
-    return redirect('manage_quizzes')
+    material = get_object_or_404(Material, slug=quiz_slug)
+    material.delete()
+    return redirect('manage_materials')
 
 
-def create_quiz_step1(request):
-    error = None
-    form_data = request.session.get('quiz_step1_data', {})
+@csrf_exempt
+@require_POST
+def material_publish_toggle(request, quiz_slug):
+    """تغيير حالة نشر المحتوى فورياً (نشط / مسودة) من جدول إدارة المواد بـ POST"""
+    quiz_slug = unquote(quiz_slug)
+    material = get_object_or_404(Material, slug=quiz_slug)
+    action = request.POST.get('action')
+    
+    if action == 'publish':
+        material.is_active = True
+    elif action == 'unpublish':
+        material.is_active = False
+        
+    material.save()
+    return redirect('manage_materials')
 
+
+# ---------------------------------------------------------------------------
+# Unified Create & Edit Material View Flow
+# ---------------------------------------------------------------------------
+
+
+def create_material_step1(request, quiz_slug=None):
+    """
+    الـ View المدمج والذكي لإنشاء وتعديل المسابقات (صفحة واحدة - Preview Tabs).
+    يتعرف تلقائياً على القسم النشط عبر الـ GET Parameter ومثبت الجافاسكريبت بالـ Template.
+    """
+    material = None
+    questions_json = []
+    existing_links = []
+
+    # 1. حالة التعديل: إذا قمنا بتمرير الـ slug للمادة
+    if quiz_slug:
+        quiz_slug = unquote(quiz_slug)
+        material = get_object_or_404(Material, slug=quiz_slug)
+        category = material.category
+        existing_links = material.links.all()
+        
+        # تجهيز الأسئلة الحالية بصيغة JSON لإعادة حقنها في الـ Form المدمج
+        for q in material.questions.prefetch_related('choices').all():
+            choices_dict = {c.key: c.text for c in q.choices.all()}
+            correct_choice = next((c.key for c in q.choices.all() if c.is_correct), 'a')
+            questions_json.append({
+                'text': q.text,
+                'explanation': q.explanation,
+                'correct': correct_choice,
+                'choices': choices_dict
+            })
+    else:
+        # 2. حالة إنشاء جديد: التقاط الفئة الافتراضية
+        category = request.GET.get('category', 'bible').strip()
+
+    # 3. حفظ ومعالجة البيانات عند الـ Submit للـ Form
     if request.method == 'POST':
-        book_name = request.POST.get('book_name', '').strip()
-        chapter_number = request.POST.get('chapter_number', '').strip()
-        title = request.POST.get('title', '').strip()
-        raw_text = request.POST.get('raw_text', '').strip()
-        uploaded_file = request.FILES.get('quiz_file')
-
-        if uploaded_file:
-            try:
-                raw_text = extract_text_from_file(uploaded_file)
-            except Exception as e:
-                error = str(e)
-
-        if not raw_text:
-            error = "من فضلك الصق نص الأسئلة أو ارفع ملف يحتوي عليها."
-
-        form_data = {
-            'book_name': book_name,
-            'chapter_number': chapter_number,
-            'title': title,
-            'raw_text': raw_text
-        }
-        request.session['quiz_step1_data'] = form_data
-
-        if not error:
-            parsed_questions = parse_quiz_text(raw_text)
-            if not parsed_questions:
-                error = "لم نتمكن من العثور على أي أسئلة بالتنسيق المطلوب، يرجى مراجعة طريقة الكتابة."
-            else:
-                request.session['parsed_questions'] = parsed_questions
-                request.session['quiz_meta'] = {
-                    'book_name': book_name,
-                    'chapter_number': chapter_number,
-                    'title': title
-                }
-                return redirect('create_quiz_preview')
-
-    return render(request, 'quiz/panel/create_quiz_step1.html', {
-        'error': error,
-        'form_data': form_data,
-        'active_tab': 'new_quiz'
-    })
-
-
-def _save_questions_from_post(request, quiz):
-    """Helper: reads q{i}_* fields from POST and saves Question + QuestionChoice rows."""
-    try:
-        total_qs = int(request.POST.get('total_questions', 0))
-    except ValueError:
-        total_qs = 0
-
-    order = 1
-    for i in range(total_qs):
-        text = request.POST.get(f'q{i}_text', '').strip()
-        if not text:
-            continue
-
-        # How many choices were submitted for this question
+        source_name = request.POST.get('source_name', '').strip()
         try:
-            num_choices = int(request.POST.get(f'q{i}_num_choices', 4))
+            chapter_number = int(request.POST.get('chapter_number', 1))
         except ValueError:
-            num_choices = 4
-
-        num_choices = max(2, min(8, num_choices))
-        correct_key = request.POST.get(f'q{i}_correct', 'a')
-
-        question = Question.objects.create(
-            quiz=quiz,
-            order=order,
-            text=text,
-            explanation=request.POST.get(f'q{i}_explanation', '').strip(),
-        )
-
-        choices_to_create = []
-        for idx, key in enumerate(ALL_CHOICE_KEYS[:num_choices]):
-            choice_text = request.POST.get(f'q{i}_choice_{key}', '').strip()
-            if not choice_text and key not in ('a', 'b'):
-                continue  # skip empty optional choices
-            choices_to_create.append(QuestionChoice(
-                question=question,
-                key=key,
-                text=choice_text,
-                is_correct=(key == correct_key),
-                order=idx,
-            ))
-
-        QuestionChoice.objects.bulk_create(choices_to_create)
-        order += 1
-
-
-def create_quiz_preview(request):
-    parsed_questions = request.session.get('parsed_questions', [])
-    quiz_meta = request.session.get('quiz_meta', {})
-
-    if not parsed_questions or not quiz_meta:
-        return redirect('create_quiz_step1')
-
-    if request.method == 'POST':
-        book_name = request.POST.get('book_name', '').strip()
-        chapter_number = int(request.POST.get('chapter_number'))
+            chapter_number = 1
         title = request.POST.get('title', '').strip()
 
-        quiz = Quiz.objects.create(
-            book_name=book_name,
-            chapter_number=chapter_number,
-            title=title
-        )
-        _save_questions_from_post(request, quiz)
+        if not material:
+            material = Material(category=category)
+            material.is_active = False  # always starts as a draft on first creation
+        # NOTE: when editing an existing material, is_active is intentionally
+        # left untouched here. Publishing/unpublishing only ever happens on
+        # the dedicated publish page (create_material_publish), never as a
+        # side-effect of saving questions/metadata here.
 
-        request.session.pop('parsed_questions', None)
-        request.session.pop('quiz_meta', None)
-        request.session.pop('quiz_step1_data', None)
+        material.source_name = source_name
+        material.chapter_number = chapter_number
+        material.title = title
 
-        from urllib.parse import unquote as _unquote
-        return redirect('create_quiz_publish', quiz_slug=_unquote(quiz.slug))
+        # 🟢 تركيب الـ Slug الجديد المخصص (الاسم - الاصحاح - الرقم - العنوان)
+        # نقوم بدمج النصوص أولاً
+        if title:
+            slug_text = f"{source_name} الاصحاح {chapter_number} {title}"
+        else:
+            slug_text = f"{source_name} الاصحاح {chapter_number}"
+            
+        # تحويل النص المدمج إلى سبيكة روابط (Slug) تدعم اللغة العربية (allow_unicode=True)
+        material.slug = slugify(slug_text, allow_unicode=True)
 
-    return render(request, 'quiz/panel/create_quiz_preview.html', {
-        'questions': parsed_questions,
-        'quiz_meta': quiz_meta,
-        'active_tab': 'new_quiz',
+        material.save()  # حفظ المادة بالـ Slug الجديد المخصص
+
+        # تنظيف الأسئلة القديمة لحقن التعديلات أو المدخلات الجديدة بأمان دون تكرار
+        material.questions.all().delete()
+
+        # قراءة حقول الأسئلة المخفية المرسلة من مفسر نصوص الجافاسكريبت العميل (Client-Side Parser)
+        idx = 0
+        order = 1
+        while f'q{idx}_text' in request.POST:
+            q_text = request.POST.get(f'q{idx}_text', '').strip()
+            q_exp = request.POST.get(f'q{idx}_explanation', '').strip()
+            q_correct = request.POST.get(f'q{idx}_correct', 'a').lower()
+
+            if q_text:
+                question = Question.objects.create(
+                    material=material,
+                    order=order,
+                    text=q_text,
+                    explanation=q_exp
+                )
+                choices_to_create = []
+                for key in ['a', 'b', 'c', 'd']:
+                    choice_text = request.POST.get(f'q{idx}_choice_{key}', '').strip()
+                    choices_to_create.append(QuestionChoice(
+                        question=question,
+                        key=key,
+                        text=choice_text,
+                        is_correct=(key == q_correct)
+                    ))
+                QuestionChoice.objects.bulk_create(choices_to_create)
+                order += 1
+            idx += 1
+
+        # حفظ وإدارة الروابط الديناميكية المرفقة (مثال: لقسم اقرأ واعرف واكسب)
+        material.links.all().delete()
+        link_types = request.POST.getlist('link_type[]')
+        link_urls = request.POST.getlist('link_url[]')
+        link_labels = request.POST.getlist('link_label[]')
+
+        links_to_create = []
+        for i, url in enumerate(link_urls):
+            if url.strip():
+                links_to_create.append(MaterialLink(
+                    material=material,
+                    link_type=link_types[i] if i < len(link_types) else 'article',
+                    url=url.strip(),
+                    label=link_labels[i].strip() if i < len(link_labels) else '',
+                    order=i
+                ))
+        if links_to_create:
+            MaterialLink.objects.bulk_create(links_to_create)
+
+        return redirect('create_material_publish', quiz_slug=material.slug)
+
+    return render(request, 'quiz/panel/create_material.html', {
+        'material': material,
+        'category': category,
+        'category_label': CATEGORY_LABELS.get(category, 'كتاب مقدس'),
+        'questions_json': json.dumps(questions_json, ensure_ascii=False),
+        'existing_links': existing_links,
+        'active': 'create_material_step1' if not quiz_slug else 'manage_materials',
     })
 
-
-def create_quiz_publish(request, quiz_slug):
-    from urllib.parse import unquote as _unquote
-    decoded_slug = _unquote(quiz_slug)
-    try:
-        quiz = Quiz.objects.get(slug=decoded_slug)
-    except Quiz.DoesNotExist:
-        quiz = get_object_or_404(Quiz, slug=quiz_slug)
+def create_material_publish(request, quiz_slug):
+    """صفحة النجاح وتوليد الروابط المباشرة للمسابقة بعد تمام الحفظ"""
+    quiz_slug = unquote(quiz_slug)
+    material = get_object_or_404(Material, slug=quiz_slug)
 
     if request.method == 'POST':
         action = request.POST.get('action')
-        if action == 'publish':
-            quiz.is_active = True
-            quiz.save()
-        elif action == 'unpublish':
-            quiz.is_active = False
-            quiz.save()
+        material.is_active = (action == 'publish')
+        material.save()
 
-    raw_url = request.build_absolute_uri(reverse('quiz_view', args=[quiz.slug]))
-    quiz_url = decode_url_slug(raw_url)
+    # 🟢 تعديل: توليد الرابط ثم فك التشفير عن الحروف العربية ليعود بصيغة واضحة ومقروءة للمستخدم
+    raw_url = request.build_absolute_uri(reverse('quiz_view', args=[material.slug]))
+    quiz_url = unquote(raw_url)
 
     return render(request, 'quiz/panel/create_quiz_publish.html', {
-        'quiz': quiz,
+        'material': material,
         'quiz_url': quiz_url,
-        'active_tab': 'new_quiz',
+        'active': 'manage_materials',
     })
 
 
-def edit_existing_quiz(request, quiz_slug):
-    quiz_slug = unquote(quiz_slug)
-    quiz = get_object_or_404(Quiz, slug=quiz_slug)
+# دالتين احتياطيتين لمنع أخطاء الروابط القديمة بملف الـ URLs في المشروع
+def create_material_preview(request):
+    return redirect('create_material_step1')
 
-    if request.method == 'POST':
-        quiz.book_name = request.POST.get('book_name', '').strip()
-        quiz.chapter_number = int(request.POST.get('chapter_number'))
-        quiz.title = request.POST.get('title', '').strip()
-        quiz.slug = ""
-        quiz.save()
-
-        quiz.questions.all().delete()  # cascades to QuestionChoice
-        _save_questions_from_post(request, quiz)
-        return redirect('manage_quizzes')
-
-    # Build questions list for template
-    questions_list = []
-    for q in quiz.questions.prefetch_related('choices').all():
-        choices = [
-            {'key': c.key, 'label': CHOICE_KEY_LABELS.get(c.key, c.key), 'value': c.text, 'is_correct': c.is_correct}
-            for c in q.choices.all()
-        ]
-        correct_key = next((c['key'] for c in choices if c['is_correct']), 'a')
-        questions_list.append({
-            'text': q.text,
-            'correct': correct_key,
-            'explanation': q.explanation,
-            'choices': choices,
-        })
-
-    return render(request, 'quiz/panel/create_quiz_preview.html', {
-        'questions': questions_list,
-        'quiz_meta': {
-            'book_name': quiz.book_name,
-            'chapter_number': quiz.chapter_number,
-            'title': quiz.title
-        },
-        'is_editing_existing': True,
-        'quiz': quiz,
-        'active_tab': 'manage_quizzes'
-    })
+def parse_preview_ajax(request):
+    return JsonResponse({'status': 'deprecated, handled client-side'})
