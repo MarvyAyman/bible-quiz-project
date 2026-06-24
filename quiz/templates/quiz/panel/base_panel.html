@@ -204,7 +204,7 @@
         <a href="{% url 'manage_materials' %}" class="{% if active == 'manage_materials' %}active{% endif %}">⚙️ إدارة المحتوى</a>
         
         <a href="{% url 'create_material_step1' %}?category=bible" class="{% if active == 'create_material_step1' and request.GET.category == 'bible' %}active{% endif %}">📖 كتاب مقدس</a>
-        <a href="{% url 'create_material_step1' %}?category=spiritual" class="{% if active == 'create_material_step1' and request.GET.category == 'spiritual' %}active{% endif %}">📚 كتاب روحي</a>
+        <!-- <a href="{% url 'create_material_step1' %}?category=spiritual" class="{% if active == 'create_material_step1' and request.GET.category == 'spiritual' %}active{% endif %}">📚 كتاب روحي</a> -->
         <a href="{% url 'create_material_step1' %}?category=iqraa" class="{% if active == 'create_material_step1' and request.GET.category == 'iqraa' %}active{% endif %}">📁 اقرأ واعرف واكسب</a>
         
         <div class="back-link">
