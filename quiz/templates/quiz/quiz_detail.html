@@ -89,8 +89,25 @@
         }
         .soft-btn.download-btn { color: #2e7d32; }
         .soft-btn.download-btn:hover { color: #1b5e20; }
-        .soft-btn.telegram-btn { color: #0088cc; width: 100%; flex: none; }
-        
+        .soft-btn.telegram-btn {
+    color: #0088cc;
+    width: 100%;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--soft-bg);
+}
+.soft-btn.telegram-btn:hover {
+    color: #006699;
+    background: #f0f8ff; /* تأثير تغيير خلفية خفيف جداً عند الوقوف بالماوس */
+}
+.soft-btn.telegram-btn svg {
+    transition: transform 0.2s ease;
+}
+.soft-btn.telegram-btn:hover svg {
+    transform: scale(1.1) rotate(-5deg); /* حركة تفاعلية ممتعة للأيقونة عند الحوم فوق الزر */
+}
         /* --- مودال منزلق من الأسفل للأعلى (Instagram Style) --- */
         .bottom-modal-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,0.5);
@@ -280,8 +297,11 @@
             if (urlLower.includes('t.me') || urlLower.includes('telegram.org')) {
                 btnGroup.innerHTML = `
                     <a href="${link.url}" target="_blank" style="text-decoration: none; width: 100%;">
-                        <button class="soft-btn telegram-btn">
-                            ✈️ تحميل وتصفح المرجع عبر تليجرام
+                        <button class="soft-btn telegram-btn" style="width: 100%; justify-content: center; gap: 10px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="22" height="22" style="display:block; fill: #0088cc;">
+                                <path d="M41.74 7.21C41.38 6.84 40.82 6.67 40.23 6.78L5.68 19.46C4.94 19.71 4.45 20.35 4.38 21.13C4.31 21.91 4.67 22.65 5.33 23.03L14.07 28.01C14.79 28.42 15.69 28.32 16.3 27.76L33.72 12.01C33.91 11.84 34.21 11.84 34.4 12.01C34.59 12.18 34.62 12.47 34.47 12.67L19.44 31.95C18.99 32.53 18.93 33.32 19.3 33.96L24.58 43.1C24.93 43.7 25.56 44.05 26.24 44.05C26.34 44.05 26.44 44.04 26.54 44.03C27.31 43.91 27.91 43.34 28.07 42.58L43.83 9.47C44.04 8.71 43.85 7.89 43.34 7.39L41.74 7.21Z"/>
+                            </svg>
+                            <span>تحميل وتصفح المرجع عبر تليجرام</span>
                         </button>
                     </a>`;
             } 
