@@ -13,6 +13,8 @@ import re
 import jwt
 from urllib.parse import unquote
 from django.views.decorators.csrf import csrf_exempt
+from django.db.models.functions import TruncDate
+import datetime
 
 ALL_CHOICE_KEYS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 CHOICE_KEY_LABELS = {'a': 'أ', 'b': 'ب', 'c': 'ج', 'd': 'د', 'e': 'هـ', 'f': 'و', 'g': 'ز', 'h': 'ح'}
@@ -308,55 +310,173 @@ def extract_text_from_file(uploaded_file):
 # Panel / Dashboard (staff-only) views (لوحة التحكم والإدارة)
 # ---------------------------------------------------------------------------
 
-def panel_dashboard(request):
-    total_subscribers = User.objects.filter(is_staff=False).count()
-    total_attempts = Score.objects.count()
-    avg_time_seconds = Score.objects.aggregate(avg=Avg('time_taken_seconds'))['avg'] or 0
+"""
+panel_dashboard view — replace the existing panel_dashboard function in views.py
+with this updated version. All other views remain unchanged.
 
+New data provided to the template:
+  • category_stats   — per-category breakdown (bible / spiritual / iqraa)
+  • top_performers   — top 5 users by total correct answers
+  • recent_activity  — last 7 Score records for the "live feed" section
+  • engagement_trend — daily attempt counts for the last 7 days (for the trend sparkline)
+  • hardest_questions — same as before, now also carries category info
+  • active_materials_count / draft_materials_count
+"""
+
+from django.contrib.auth.models import User
+from django.db.models import Avg, Count, Sum, Q
+from django.db.models.functions import TruncDate
+from django.utils import timezone
+import datetime
+
+from .models import Material, Question, Score, QuestionResponse
+
+
+def panel_dashboard(request):
+    # ── 1. Global KPI cards ────────────────────────────────────────────────
+    total_subscribers = User.objects.filter(is_staff=False).count()
+    total_attempts    = Score.objects.count()
+
+    avg_time_seconds  = Score.objects.aggregate(avg=Avg('time_taken_seconds'))['avg'] or 0
     minutes = int(avg_time_seconds // 60)
     seconds = int(avg_time_seconds % 60)
     avg_time_formatted = f"{minutes:02d}:{seconds:02d}"
 
-    materials = Material.objects.all()
     overall_correct = QuestionResponse.objects.filter(is_correct=True).count()
-    overall_total = QuestionResponse.objects.count()
-    overall_avg_percentage = round((overall_correct / overall_total * 100)) if overall_total > 0 else 0
+    overall_total   = QuestionResponse.objects.count()
+    overall_avg_percentage = round((overall_correct / overall_total * 100)) if overall_total else 0
 
+    active_materials_count = Material.objects.filter(is_active=True).count()
+    draft_materials_count  = Material.objects.filter(is_active=False).count()
+
+    # ── 2. Per-category stats (for the category breakdown cards) ──────────
+    CATEGORIES = [
+        ('bible',    '📖 كتاب مقدس'),
+        ('spiritual','📚 كتاب روحي'),
+        ('iqraa',    '📁 اقرأ واعرف واكسب'),
+    ]
+    category_stats = []
+    for cat_key, cat_label in CATEGORIES:
+        mat_ids = Material.objects.filter(category=cat_key).values_list('id', flat=True)
+        cat_attempts = Score.objects.filter(material_id__in=mat_ids).count()
+        cat_correct  = QuestionResponse.objects.filter(
+            question__material__category=cat_key, is_correct=True
+        ).count()
+        cat_total    = QuestionResponse.objects.filter(
+            question__material__category=cat_key
+        ).count()
+        cat_avg_pct  = round((cat_correct / cat_total * 100)) if cat_total else 0
+        cat_mat_count = Material.objects.filter(category=cat_key, is_active=True).count()
+        category_stats.append({
+            'key':       cat_key,
+            'label':     cat_label,
+            'attempts':  cat_attempts,
+            'avg_pct':   cat_avg_pct,
+            'mat_count': cat_mat_count,
+        })
+
+    # ── 3. Materials table (all materials, enriched) ───────────────────────
+    materials = list(Material.objects.all().order_by('category', 'chapter_number'))
     for m in materials:
-        m.attempts = Score.objects.filter(material=m).count()
+        m.attempts     = Score.objects.filter(material=m).count()
         m.num_questions = m.questions.count()
 
         m_avg_time = Score.objects.filter(material=m).aggregate(avg=Avg('time_taken_seconds'))['avg'] or 0
-        m_mins = int(m_avg_time // 60)
-        m_secs = int(m_avg_time % 60)
-        m.avg_time_formatted = f"{m_mins:02d}:{m_secs:02d}"
+        m.avg_time_formatted = f"{int(m_avg_time // 60):02d}:{int(m_avg_time % 60):02d}"
 
-        m_correct = QuestionResponse.objects.filter(question__material=m, is_correct=True).count()
+        m_correct   = QuestionResponse.objects.filter(question__material=m, is_correct=True).count()
         m_total_resp = QuestionResponse.objects.filter(question__material=m).count()
-        m.avg_percentage = round((m_correct / m_total_resp * 100)) if m_total_resp > 0 else None
-        m.avg_score = Score.objects.filter(material=m).aggregate(avg=Avg('score_value'))['avg']
+        m.avg_percentage = round((m_correct / m_total_resp * 100)) if m_total_resp else None
+        m.avg_score      = Score.objects.filter(material=m).aggregate(avg=Avg('score_value'))['avg']
+        m.book_name      = m.source_name   # alias used in existing template
+        m.chapter_number_display = m.chapter_number
 
-    hardest_qs = QuestionResponse.objects.filter(is_correct=False) \
-        .values('question_id', 'question__text', 'question__material__source_name', 'question__material__chapter_number') \
-        .annotate(wrong_count=Count('id')) \
+    # ── 4. Hardest questions ───────────────────────────────────────────────
+    hardest_qs = (
+        QuestionResponse.objects
+        .filter(is_correct=False)
+        .values(
+            'question_id',
+            'question__text',
+            'question__material__source_name',
+            'question__material__chapter_number',
+            'question__material__category',
+        )
+        .annotate(wrong_count=Count('id'))
         .order_by('-wrong_count')[:5]
-
+    )
     for hq in hardest_qs:
-        total_answers_for_q = QuestionResponse.objects.filter(question_id=hq['question_id']).count()
-        hq['wrong_percentage'] = round((hq['wrong_count'] / total_answers_for_q * 100)) if total_answers_for_q > 0 else 0
-        hq['question_short'] = hq['question__text'][:60] + ('...' if len(hq['question__text']) > 60 else '')
+        total_for_q = QuestionResponse.objects.filter(question_id=hq['question_id']).count()
+        hq['wrong_percentage'] = round((hq['wrong_count'] / total_for_q * 100)) if total_for_q else 0
+        hq['question_short']   = hq['question__text'][:65] + ('...' if len(hq['question__text']) > 65 else '')
+
+    # ── 5. Top performers (top 5 users by total correct responses) ─────────
+    top_performers = (
+        QuestionResponse.objects
+        .filter(is_correct=True)
+        .values('score__user__first_name', 'score__user__username')
+        .annotate(correct_total=Count('id'))
+        .order_by('-correct_total')[:5]
+    )
+
+    # ── 6. Recent activity feed (last 8 quiz attempts) ─────────────────────
+    recent_activity = (
+        Score.objects
+        .select_related('user', 'material')
+        .order_by('-created_at')[:8]
+    )
+    for s in recent_activity:
+        total_q = s.material.questions.count()
+        s.percentage = round((s.score_value / total_q * 100)) if total_q else 0
+        mins, secs = divmod(s.time_taken_seconds, 60)
+        s.time_label = f"{mins:02d}:{secs:02d}"
+        s.display_name = s.user.first_name or s.user.username[:12]
+
+    # ── 7. New subscribers per day — last 7 days ──────────────────────────
+    today = timezone.now().date()
+    seven_days_ago = today - datetime.timedelta(days=6)
+    daily_counts_qs = (
+        User.objects
+        .filter(is_staff=False, date_joined__date__gte=seven_days_ago)
+        .annotate(day=TruncDate('date_joined'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+    # Build a complete 7-day list (0 for missing days)
+    daily_map = {row['day']: row['count'] for row in daily_counts_qs}
+    ARABIC_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+    engagement_trend = []
+    for i in range(7):
+        d = seven_days_ago + datetime.timedelta(days=i)
+        engagement_trend.append({
+            'label': ARABIC_DAYS[d.weekday() % 7],  # weekday(): Mon=0 → Sun=6
+            'count': daily_map.get(d, 0),
+        })
+
+    # ── 8. Chart data for JS ───────────────────────────────────────────────
+    # Per-material bar chart (same as before)
+    chart_materials = [m for m in materials if m.attempts > 0]
 
     context = {
-        'total_subscribers': total_subscribers,
-        'total_attempts': total_attempts,
-        'avg_time_formatted': avg_time_formatted,
-        'overall_avg_percentage': overall_avg_percentage,
-        'materials': materials,
-        'hardest_questions': hardest_qs,
-        'active': 'dashboard',
+        # KPIs
+        'total_subscribers':       total_subscribers,
+        'total_attempts':          total_attempts,
+        'avg_time_formatted':      avg_time_formatted,
+        'overall_avg_percentage':  overall_avg_percentage,
+        'active_materials_count':  active_materials_count,
+        'draft_materials_count':   draft_materials_count,
+        # Sections
+        'category_stats':          category_stats,
+        'materials':               materials,
+        'chart_materials':         chart_materials,
+        'hardest_questions':       hardest_qs,
+        'top_performers':          top_performers,
+        'recent_activity':         recent_activity,
+        'engagement_trend':        engagement_trend,
+        'active':                  'dashboard',
     }
     return render(request, 'quiz/panel/dashboard.html', context)
-
 
 def manage_materials(request):
     """عرض جدول إدارة كل المواد المرفوعة مع الفلترة الذكية"""

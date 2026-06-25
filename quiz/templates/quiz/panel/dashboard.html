@@ -1,92 +1,249 @@
 {% extends "quiz/panel/base_panel.html" %}
 {% block title %}نظرة عامة{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <h1>نظرة عامة 📊</h1>
-    <p>إحصائيات وأداء المشتركين في المسابقات</p>
+    <p>لوحة متابعة المشتركين وأداء المسابقات — {{ active_materials_count }} مسابقة منشورة</p>
 </div>
 
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# SECTION 1 — KPI CARDS                                                 #}
+{# ══════════════════════════════════════════════════════════════════════ #}
 <div class="stats-grid">
     <div class="card stat-card">
+        <span class="stat-icon">👥</span>
         <span class="stat-label">عدد المشتركين المسجلين</span>
         <span class="stat-value">{{ total_subscribers }}</span>
     </div>
     <div class="card stat-card">
-        <span class="stat-label">عدد المحاولات الكلي</span>
+        <span class="stat-icon">🎯</span>
+        <span class="stat-label">إجمالي المحاولات</span>
         <span class="stat-value">{{ total_attempts }}</span>
     </div>
     <div class="card stat-card">
+        <span class="stat-icon">⏱️</span>
         <span class="stat-label">متوسط وقت الحل</span>
         <span class="stat-value">{{ avg_time_formatted }}</span>
     </div>
     <div class="card stat-card">
-        <span class="stat-label">متوسط نسبة الإجابات الصحيحة</span>
+        <span class="stat-icon">✅</span>
+        <span class="stat-label">متوسط الإجابات الصحيحة</span>
         <span class="stat-value">{{ overall_avg_percentage }}%</span>
     </div>
-</div>
-
-<div class="charts-grid">
-    <div class="card">
-        <h3>متوسط نسبة الإجابات الصحيحة لكل مسابقة</h3>
-        {% if quizzes %}
-            <canvas id="percentageChart"></canvas>
-        {% else %}
-            <p class="empty-row">لا توجد مسابقات بعد.</p>
-        {% endif %}
+    <div class="card stat-card stat-card--accent">
+        <span class="stat-icon">📚</span>
+        <span class="stat-label">مسابقات منشورة</span>
+        <span class="stat-value">{{ active_materials_count }}</span>
+    </div>
+    <div class="card stat-card stat-card--muted">
+        <span class="stat-icon">📝</span>
+        <span class="stat-label">مسودات غير منشورة</span>
+        <span class="stat-value">{{ draft_materials_count }}</span>
     </div>
 </div>
 
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# SECTION 2 — CATEGORY BREAKDOWN                                        #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+<div class="section-title">
+    <h2>🗂️ الأداء حسب القسم</h2>
+</div>
+<div class="category-grid">
+    {% for cs in category_stats %}
+    <div class="card category-card category-card--{{ cs.key }}">
+        <div class="category-card__header">
+            <span class="category-card__label">{{ cs.label }}</span>
+            <span class="category-card__badge">{{ cs.mat_count }} مسابقة</span>
+        </div>
+        <div class="category-card__stats">
+            <div class="category-stat">
+                <span class="category-stat__num">{{ cs.attempts }}</span>
+                <span class="category-stat__lbl">محاولة</span>
+            </div>
+            <div class="category-stat">
+                <span class="category-stat__num {% if cs.avg_pct >= 70 %}color-success{% elif cs.avg_pct >= 50 %}color-warn{% else %}color-danger{% endif %}">
+                    {{ cs.avg_pct }}%
+                </span>
+                <span class="category-stat__lbl">متوسط الصحة</span>
+            </div>
+        </div>
+        {% if cs.attempts > 0 %}
+        <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width: {{ cs.avg_pct }}%"></div>
+        </div>
+        {% else %}
+        <p class="empty-inline">لا توجد محاولات بعد</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# SECTION 3 — CHARTS ROW                                                #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+<div class="charts-grid charts-grid--two">
+    <div class="card">
+        <h3>📈 متوسط الإجابات الصحيحة لكل مسابقة</h3>
+        {% if chart_materials %}
+            <canvas id="percentageChart" height="200"></canvas>
+        {% else %}
+            <p class="empty-row">لا توجد بيانات بعد.</p>
+        {% endif %}
+    </div>
+    <div class="card">
+        <h3>📅 المشتركين الجدد (آخر ٧ أيام)</h3>
+        <canvas id="trendChart" height="200"></canvas>
+    </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# SECTION 4 — TOP PERFORMERS + RECENT ACTIVITY (side by side)          #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+<div class="charts-grid charts-grid--two">
+
+    {# Top 5 performers #}
+    <div class="card table-card">
+        <h3>🏆 أكثر المشتركين تفوقاً</h3>
+        {% if top_performers %}
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>الاسم</th>
+                    <th>إجابات صحيحة</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in top_performers %}
+                <tr>
+                    <td>
+                        {% if forloop.counter == 1 %}🥇
+                        {% elif forloop.counter == 2 %}🥈
+                        {% elif forloop.counter == 3 %}🥉
+                        {% else %}{{ forloop.counter }}{% endif %}
+                    </td>
+                    <td>{{ p.score__user__first_name|default:p.score__user__username }}</td>
+                    <td><strong>{{ p.correct_total }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-row">لا توجد بيانات بعد.</p>
+        {% endif %}
+    </div>
+
+    {# Recent activity feed #}
+    <div class="card table-card">
+        <h3>🕐 آخر المحاولات</h3>
+        {% if recent_activity %}
+        <table>
+            <thead>
+                <tr>
+                    <th>المشترك</th>
+                    <th>المسابقة</th>
+                    <th>النتيجة</th>
+                    <th>الوقت</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in recent_activity %}
+                <tr>
+                    <td>{{ s.display_name }}</td>
+                    <td class="text-sm">{{ s.material.source_name }} — أصحاح {{ s.material.chapter_number }}</td>
+                    <td>
+                        <span class="badge {% if s.percentage >= 70 %}badge-success{% elif s.percentage >= 50 %}badge-warn{% else %}badge-danger{% endif %}">
+                            {{ s.percentage }}%
+                        </span>
+                    </td>
+                    <td class="text-sm">{{ s.time_label }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-row">لا توجد محاولات بعد.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# SECTION 5 — MATERIALS PERFORMANCE TABLE (grouped by category)        #}
+{# ══════════════════════════════════════════════════════════════════════ #}
 <div class="card table-card">
-    <h3>أداء المسابقات الحالي</h3>
-    <table>
+    <h3>📋 أداء كل المسابقات</h3>
+    <div class="table-filter-tabs" id="matFilterTabs">
+        <button class="filter-tab active" data-cat="all" onclick="filterMat('all', this)">الكل</button>
+        <button class="filter-tab" data-cat="bible" onclick="filterMat('bible', this)">📖 كتاب مقدس</button>
+        <button class="filter-tab" data-cat="spiritual" onclick="filterMat('spiritual', this)">📚 كتاب روحي</button>
+        <button class="filter-tab" data-cat="iqraa" onclick="filterMat('iqraa', this)">📁 اقرأ</button>
+    </div>
+    <table id="matTable">
         <thead>
             <tr>
                 <th>المسابقة</th>
+                <th>القسم</th>
+                <th>الأسئلة</th>
                 <th>المحاولات</th>
                 <th>متوسط الدرجة</th>
-                <th>النسبة</th>
+                <th>نسبة الصحة</th>
                 <th>متوسط الوقت</th>
                 <th>الحالة</th>
             </tr>
         </thead>
         <tbody>
-            {% for quiz in quizzes %}
-            <tr>
-                <td>{{ quiz.book_name }} - أصحاح {{ quiz.chapter_number }}{% if quiz.title %} ({{ quiz.title }}){% endif %}</td>
-                <td>{{ quiz.attempts }}</td>
+            {% for m in materials %}
+            <tr data-cat="{{ m.category }}">
+                <td>{{ m.source_name }}{% if m.chapter_number %} — أصحاح {{ m.chapter_number }}{% endif %}{% if m.title %} <span class="text-sm text-muted">({{ m.title }})</span>{% endif %}</td>
                 <td>
-                    {% if quiz.avg_score is not None %}
-                        {{ quiz.avg_score|floatformat:1 }} / {{ quiz.num_questions }}
+                    {% if m.category == 'bible' %}📖{% elif m.category == 'spiritual' %}📚{% else %}📁{% endif %}
+                    {{ m.get_category_display }}
+                </td>
+                <td>{{ m.num_questions }}</td>
+                <td>{{ m.attempts }}</td>
+                <td>
+                    {% if m.avg_score is not None %}
+                        {{ m.avg_score|floatformat:1 }} / {{ m.num_questions }}
                     {% else %}—{% endif %}
                 </td>
                 <td>
-                    {% if quiz.avg_percentage is not None %}{{ quiz.avg_percentage }}%{% else %}—{% endif %}
+                    {% if m.avg_percentage is not None %}
+                        <span class="badge {% if m.avg_percentage >= 70 %}badge-success{% elif m.avg_percentage >= 50 %}badge-warn{% else %}badge-danger{% endif %}">
+                            {{ m.avg_percentage }}%
+                        </span>
+                    {% else %}—{% endif %}
                 </td>
-                <td>{{ quiz.avg_time_formatted }}</td>
+                <td>{{ m.avg_time_formatted }}</td>
                 <td>
-                    {% if quiz.is_active %}
+                    {% if m.is_active %}
                         <span class="badge badge-success">نشط</span>
                     {% else %}
-                        <span class="badge badge-muted">غير نشط</span>
+                        <span class="badge badge-muted">مسودة</span>
                     {% endif %}
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="empty-row">لا توجد مسابقات بعد.</td></tr>
+            <tr><td colspan="8" class="empty-row">لا توجد مسابقات بعد.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# SECTION 6 — HARDEST QUESTIONS                                         #}
+{# ══════════════════════════════════════════════════════════════════════ #}
 <div class="card table-card">
-    <h3>أصعب الأسئلة (الأكثر إجابة خاطئة)</h3>
+    <h3>🔴 أصعب الأسئلة (الأكثر إجابة خاطئة)</h3>
     {% if hardest_questions %}
     <table>
         <thead>
             <tr>
                 <th>السؤال</th>
                 <th>المسابقة</th>
-                <th>عدد الإجابات الخاطئة</th>
+                <th>القسم</th>
+                <th>خطأ</th>
                 <th>نسبة الخطأ</th>
             </tr>
         </thead>
@@ -94,7 +251,12 @@
             {% for hq in hardest_questions %}
             <tr>
                 <td>{{ hq.question_short }}</td>
-                <td>{{ hq.question__material__source_name }} - أصحاح {{ hq.question__material__chapter_number }}</td>
+                <td>{{ hq.question__material__source_name }} — أصحاح {{ hq.question__material__chapter_number }}</td>
+                <td>
+                    {% if hq.question__material__category == 'bible' %}📖 كتاب مقدس
+                    {% elif hq.question__material__category == 'spiritual' %}📚 كتاب روحي
+                    {% else %}📁 اقرأ{% endif %}
+                </td>
                 <td>{{ hq.wrong_count }}</td>
                 <td><span class="badge badge-danger">{{ hq.wrong_percentage }}%</span></td>
             </tr>
@@ -106,28 +268,185 @@
     {% endif %}
 </div>
 
-{% if quizzes %}
-<script>
-    const quizLabels = [{% for q in quizzes %}"{{ q.book_name }} ش {{ q.chapter_number }}"{% if not forloop.last %},{% endif %}{% endfor %}];
-    const quizPercentages = [{% for q in quizzes %}{{ q.avg_percentage|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}];
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# STYLES                                                                 #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+<style>
+/* ── KPI cards ── */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.stat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .3rem;
+    padding: 1.2rem 1.4rem;
+}
+.stat-icon { font-size: 1.5rem; }
+.stat-label { font-size: .78rem; color: #888; }
+.stat-value { font-size: 2rem; font-weight: 700; color: #B8860B; line-height: 1; }
+.stat-card--accent .stat-value { color: #2a9d5c; }
+.stat-card--muted  .stat-value { color: #aaa; }
 
-    new Chart(document.getElementById('percentageChart'), {
-        type: 'bar',
-        data: {
-            labels: quizLabels,
-            datasets: [{
-                label: 'نسبة الإجابات الصحيحة %',
-                data: quizPercentages,
-                backgroundColor: '#D4AF37',
-                borderRadius: 6,
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: { y: { beginAtZero: true, max: 100 } },
-            plugins: { legend: { display: false } }
-        }
+/* ── Section titles ── */
+.section-title { margin: 2rem 0 .8rem; }
+.section-title h2 { font-size: 1.1rem; font-weight: 700; color: #5a3e1b; }
+
+/* ── Category grid ── */
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.category-card { padding: 1.2rem 1.4rem; }
+.category-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: .8rem;
+}
+.category-card__label { font-weight: 700; font-size: .95rem; color: #3a2a0a; }
+.category-card__badge {
+    font-size: .72rem;
+    background: #f3e8c8;
+    color: #8a6020;
+    border-radius: 20px;
+    padding: .2rem .7rem;
+}
+.category-card__stats { display: flex; gap: 2rem; margin-bottom: .8rem; }
+.category-stat { display: flex; flex-direction: column; }
+.category-stat__num { font-size: 1.6rem; font-weight: 700; color: #B8860B; line-height: 1.1; }
+.category-stat__lbl { font-size: .72rem; color: #aaa; }
+
+/* ── Progress bar ── */
+.progress-bar-wrap {
+    height: 6px;
+    background: #f0e8d0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #D4AF37, #e8c94a);
+    border-radius: 3px;
+    transition: width .6s ease;
+}
+
+/* ── Charts grid ── */
+.charts-grid { display: grid; gap: 1rem; margin-bottom: 1.5rem; }
+.charts-grid--two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 768px) { .charts-grid--two { grid-template-columns: 1fr; } }
+
+/* ── Badges (extend existing) ── */
+.badge-warn { background: #fff3cd; color: #856404; }
+
+/* ── Color helpers ── */
+.color-success { color: #2a9d5c !important; }
+.color-warn    { color: #c79b00 !important; }
+.color-danger  { color: #c0392b !important; }
+.text-sm   { font-size: .8rem; }
+.text-muted{ color: #aaa; }
+
+/* ── Empty inline ── */
+.empty-inline { font-size: .82rem; color: #bbb; margin: .5rem 0 0; }
+
+/* ── Filter tabs ── */
+.table-filter-tabs {
+    display: flex;
+    gap: .5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.filter-tab {
+    padding: .35rem .9rem;
+    border: 1.5px solid #e0d0a0;
+    border-radius: 20px;
+    background: #fff;
+    color: #8a6020;
+    font-size: .82rem;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: inherit;
+}
+.filter-tab:hover  { background: #fdf6e3; }
+.filter-tab.active { background: #D4AF37; color: #fff; border-color: #D4AF37; }
+</style>
+
+{# ══════════════════════════════════════════════════════════════════════ #}
+{# SCRIPTS                                                                #}
+{# ══════════════════════════════════════════════════════════════════════ #}
+<script>
+/* ── Materials filter tabs ── */
+function filterMat(cat, btn) {
+    document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('#matTable tbody tr[data-cat]').forEach(row => {
+        row.style.display = (cat === 'all' || row.dataset.cat === cat) ? '' : 'none';
     });
-</script>
+}
+
+/* ── Chart 1: per-quiz correct % bar ── */
+{% if chart_materials %}
+const quizLabels      = [{% for m in chart_materials %}"{{ m.source_name }} — أصحاح {{ m.chapter_number }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const quizPercentages = [{% for m in chart_materials %}{{ m.avg_percentage|default:0 }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+new Chart(document.getElementById('percentageChart'), {
+    type: 'bar',
+    data: {
+        labels: quizLabels,
+        datasets: [{
+            label: 'نسبة الإجابات الصحيحة %',
+            data: quizPercentages,
+            backgroundColor: quizPercentages.map(v =>
+                v >= 70 ? '#2a9d5c' : v >= 50 ? '#D4AF37' : '#e05252'
+            ),
+            borderRadius: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: { beginAtZero: true, max: 100,
+                 ticks: { callback: v => v + '%' } },
+            x: { ticks: { font: { size: 11 } } }
+        },
+        plugins: { legend: { display: false } }
+    }
+});
 {% endif %}
+
+/* ── Chart 2: daily trend sparkline ── */
+const trendLabels = [{% for d in engagement_trend %}"{{ d.label }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const trendCounts = [{% for d in engagement_trend %}{{ d.count }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+        labels: trendLabels,
+        datasets: [{
+            label: 'مشتركين جدد',
+            data: trendCounts,
+            borderColor: '#D4AF37',
+            backgroundColor: 'rgba(212,175,55,0.12)',
+            borderWidth: 2.5,
+            pointBackgroundColor: '#D4AF37',
+            pointRadius: 4,
+            fill: true,
+            tension: 0.35,
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } }
+        },
+        plugins: { legend: { display: false } }
+    }
+});
+</script>
 {% endblock %}
