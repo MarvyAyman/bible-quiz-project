@@ -1,0 +1,80 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}إدارة الدروع{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <h1>🏅 إدارة الدروع</h1>
+    <p>أنشئ وعدّل وفعّل الدروع — كل درع له شرط واضح يكسبه المشترك تلقائياً</p>
+</div>
+
+<div class="card table-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="margin:0;">كل الدروع ({{ badges|length }})</h3>
+        <a href="{% url 'badge_create' %}" class="btn" style="padding:8px 16px; font-size:0.9rem;">+ درع جديد</a>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>الدرع</th>
+                <th>الشرط</th>
+                <th>القيمة</th>
+                <th>التصنيف</th>
+                <th>كسبه</th>
+                <th>الحالة</th>
+                <th style="text-align:center;">الإجراءات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for badge in badges %}
+            <tr>
+                <td>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        {% if badge.icon_image_url %}
+                        <img src="{{ badge.icon_image_url }}" alt="{{ badge.name }}"
+                             style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid var(--gold);">
+                        {% else %}
+                        <span style="font-size:1.6rem;">🏅</span>
+                        {% endif %}
+                        <div>
+                            <div style="font-weight:bold;">{{ badge.name }}</div>
+                            <div style="font-size:0.8rem; color:#8d6e63;">{{ badge.description|truncatechars:50 }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td><span class="badge badge-muted">{{ badge.get_condition_type_display }}</span></td>
+                <td style="font-weight:bold; color:var(--dark-gold);">{{ badge.threshold_value }}</td>
+                <td>{{ badge.get_category_filter_display|default:"كل التصنيفات" }}</td>
+                <td>👤 {{ badge.users_count|default:0 }} مشترك</td>
+                <td>
+                    {% if badge.is_active %}
+                        <span class="badge badge-success">نشط</span>
+                    {% else %}
+                        <span class="badge badge-muted">معطّل</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:center;">
+                    <a href="{% url 'badge_edit' badge.id %}" class="btn"
+                       style="padding:6px 12px; font-size:0.85rem; background:#a1887f; margin-left:5px;">✏️ تعديل</a>
+                    <form method="post" action="{% url 'badge_toggle' badge.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline"
+                                style="padding:6px 12px; font-size:0.85rem; margin-left:5px;">
+                            {% if badge.is_active %}تعطيل{% else %}تفعيل{% endif %}
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'badge_delete' badge.id %}" style="display:inline;"
+                          onsubmit="return confirm('هل أنت متأكد من حذف هذا الدرع؟ سيُحذف من سجل كل المشتركين.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger" style="padding:6px 12px; font-size:0.85rem;">🗑</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="empty-row">لا توجد دروع بعد. اضغط "+ درع جديد" للبدء.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

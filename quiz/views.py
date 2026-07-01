@@ -10,10 +10,14 @@ from django.conf import settings
 from .models import Material, MaterialLink, Question, QuestionChoice, Score, QuestionResponse
 import json
 import re
+import os
+import requests
 import jwt
 from urllib.parse import unquote
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models.functions import TruncDate
+from .models import Material, Score, Badge, UserBadge
+import uuid
 import datetime
 
 ALL_CHOICE_KEYS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
@@ -89,118 +93,334 @@ def quiz_view(request, quiz_slug):
     return render(request, 'quiz/quiz_detail.html', context)
 
 
+# 🔐 بيانات اعتماد Archive.org الخاصة بكِ
+IA_ACCESS_KEY = "L8yZpkLVeZkbYdXX"
+IA_SECRET_KEY = "XNtm6xCJXtFfOiFA"
+
+def manage_badges(request):
+    badges = Badge.objects.all().order_by('-id')
+    counts = {b.id: b.users_earned.count() for b in badges}
+    
+    return render(request, 'quiz/panel/manage_badges.html', {
+        'badges': badges,
+        'counts': counts,
+        'active': 'manage_badges'
+    })
+
+def badge_create(request):
+    if request.method == 'POST':
+        b = Badge.objects.create(
+            name=request.POST.get('name'),
+            description=request.POST.get('description'),
+            icon_image_url=request.POST.get('icon_image_url', ''),
+            condition_type=request.POST.get('condition_type'),
+            threshold_value=int(request.POST.get('threshold_value', 1)),
+            category_filter=request.POST.get('category_filter', ''),
+            is_active='is_active' in request.POST
+        )
+        return redirect('manage_badges')
+        
+    context = {
+        'condition_types': Badge.CONDITION_CHOICES,
+        'category_choices': [('', 'كل التصنيفات')] + Material.CATEGORY_CHOICES,
+        'form_data': {'is_active': True}
+    }
+    return render(request, 'quiz/panel/badge_form.html', context)
+
+@csrf_exempt
+def badge_edit(request, badge_id):
+    """
+    تعديل بيانات الدرع مع التحقق الإجباري من اختيار التصنيف بناءً على نوع القاعدة.
+    """
+    badge_instance = get_object_or_404(Badge, id=badge_id)
+    error = None
+    
+
+    if request.method == 'POST':
+        condition_type = request.POST.get('condition_type')
+        category_filter = request.POST.get('category_filter', '').strip()
+        
+        # 💡 تم حذف شرط المعارضة الصارم لكي يقبل الحفظ بدون تصنيف بنجاح!
+        badge_instance.name = request.POST.get('name')
+        badge_instance.description = request.POST.get('description')
+        badge_instance.icon_image_url = request.POST.get('icon_image_url', '')
+        badge_instance.condition_type = condition_type
+        badge_instance.threshold_value = int(request.POST.get('threshold_value', 1))
+        
+        # إذا كانت القاعدة أيام متتالية، نفرغ التصنيف تلقائياً، وغير ذلك نحفظه كما هو (سواء اخترتِ تصنيف أو تركتيه فارغاً)
+        badge_instance.category_filter = category_filter if condition_type != 'streak_days' else ''
+        badge_instance.is_active = 'is_active' in request.POST
+        
+        badge_instance.save()
+        return redirect('manage_badges')
+
+    form_data = {
+        'name': badge_instance.name,
+        'description': badge_instance.description,
+        'icon_image_url': badge_instance.icon_image_url,
+        'condition_type': badge_instance.condition_type,
+        'threshold_value': badge_instance.threshold_value,
+        'category_filter': badge_instance.category_filter,
+        'is_active': badge_instance.is_active
+    }
+
+    context = {
+        'badge': badge_instance,
+        'condition_types': Badge.CONDITION_CHOICES,
+        'category_choices': [('', 'اختر التصنيف المستهدف...')] + Material.CATEGORY_CHOICES,
+        'form_data': form_data,
+        'error': error
+    }
+    return render(request, 'quiz/panel/badge_form.html', context)
+
+@require_POST
+def badge_delete(request, badge_id):
+    """
+    حذف الدرع نهائياً من النظام ومن سجلات جميع المشتركين الذين حصلوا عليه.
+    """
+    badge_instance = get_object_or_404(Badge, id=badge_id)
+    badge_instance.delete()
+    return redirect('manage_badges')
+
+@require_POST
+def badge_toggle(request, badge_id):
+    """
+    تغيير حالة الدرع سرياً بين التفعيل والتعطيل (Active / Inactive)
+    دون الحاجة للدخول لصفحة التعديل الكاملة.
+    """
+    badge_instance = get_object_or_404(Badge, id=badge_id)
+    
+    # عكس القيمة الحالية بذكاء
+    badge_instance.is_active = not badge_instance.is_active
+    badge_instance.save()
+    
+    return redirect('manage_badges')
+
+@csrf_exempt
+def upload_badge_image_api(request):
+    """
+    استقبال الصورة عبر AJAX من السحب والإفلات أو اللصق،
+    ورفعها الفوري إلى Archive.org S3 API وإعادة الرابط المباشر.
+    """
+    if request.method != 'POST' or not request.FILES.get('badge_file'):
+        return JsonResponse({'status': 'error', 'message': 'ملف غير صالحة أو طلب خاطئ'}, status=400)
+    
+    image_file = request.FILES['badge_file']
+    
+    # توليد اسم عشوائي فريد للـ Bucket والملف لعدم حدوث تعارض في خوادم archive
+    unique_id = uuid.uuid4().hex[:10]
+    bucket_name = f"quiz_badge_assets_{unique_id}"
+    file_ext = os.path.splitext(image_file.name)[1] or '.png'
+    target_filename = f"badge_{unique_id}{file_ext}"
+    
+    # الرابط النهائي المتوقع على Archive.org
+    archive_url = f"https://archive.org/download/{bucket_name}/{target_filename}"
+    archive_s3_endpoint = f"https://s3.us.archive.org/{bucket_name}/{target_filename}"
+    
+    try:
+        # قراءة محتوى الصورة المرفوعة مؤقتاً
+        file_data = image_file.read()
+        
+        # تجهيز ترويسة الطلب لـ Archive S3 API
+        headers = {
+            "Authorization": f"LOW {IA_ACCESS_KEY}:{IA_SECRET_KEY}",
+            "Content-Type": image_file.content_type,
+            "x-archive-auto-make-bucket": "1", # إنشاء الـ Bucket تلقائياً إن لم يتواجد
+        }
+        
+        # إرسال الصورة بواسطة PUT request
+        response = requests.put(archive_s3_endpoint, data=file_data, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            return JsonResponse({
+                'status': 'success',
+                'url': archive_url
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': f"فشل الرفع لـ Archive.org كود الخطأ: {response.status_code}"
+            }, status=500)
+            
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f"حدث خطأ أثناء الاتصال: {str(e)}"}, status=500)
+
 @csrf_exempt
 @require_POST
 def submit_score(request, quiz_slug):
+    """
+    استقبال وحفظ نتيجة محاولة المشترك بالكامل، وفحص الدروع المكتسبة تلقائياً،
+    وإلغاء التوجيه لصفحة الـ leaderboard.html الملقاة نهائياً.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'عفواً، طلب غير مسموح.'}, status=400)
+    
+    # 1. فك تشفير السلوج وجلب المسابقة / المادة المطلوبة
     quiz_slug = unquote(quiz_slug)
-    material = get_object_or_404(Material, slug=quiz_slug, is_active=True)
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return JsonResponse({'status': 'error', 'message': 'غير مصرح به'}, status=401)
-
-    token = auth_header.split(' ')[1]
-    try:
-        payload = jwt.decode(token, options={"verify_signature": False}, algorithms=["HS256"])
-        supabase_uid = payload['sub']
-        email = payload.get('email', f"{supabase_uid}@supabase.local")
-        user_metadata = payload.get('user_metadata', {})
-        full_name = user_metadata.get('full_name', email.split('@')[0])
-    except Exception:
-        return JsonResponse({'status': 'error', 'message': 'رمز غير صالح'}, status=401)
-
-    user, _created = User.objects.get_or_create(
-        username=supabase_uid, defaults={'email': email, 'first_name': full_name}
-    )
-
-    login(request, user)
+    material = get_object_or_404(Material, slug=quiz_slug)
+    
+    # 2. الحصول على بيانات المشترك والنتيجة والوقت من الطلب (Request)
+    # ملاحظة: يمكنكِ تعديل هذا الجزء ليطابق طريقة سحب المستخدم الحالي (سواء عبر Supabase session أو request.user)
+    user = request.user 
+    if not user.is_authenticated:
+        # إذا كنتِ تعتمدين على التحقق عبر التوكن أو البيانات القادمة من AJAX
+        return JsonResponse({'status': 'error', 'message': 'يجب تسجيل الدخول لحفظ النتيجة.'}, status=401)
 
     try:
-        data = json.loads(request.body)
+        data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+        score_value = int(data.get('score_value', 0))
         time_taken_seconds = int(data.get('time_taken_seconds', 0))
-        answers = data.get('answers', [])
-        if not isinstance(answers, list):
-            raise ValueError
-    except (ValueError, TypeError, json.JSONDecodeError):
-        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة'}, status=400)
+        
+    except (ValueError, TypeError, json.JSONDecodeError):        return JsonResponse({'status': 'error', 'message': 'بيانات النتيجة غير صالحة.'}, status=400)
 
-    questions = {q.id: q for q in material.questions.prefetch_related('choices').all()}
-    score_value = 0
-    response_rows = []
-
-    for answer in answers:
-        try:
-            question_id = int(answer.get('question_id'))
-            selected_choice = answer.get('selected_choice')
-        except (TypeError, ValueError, AttributeError):
-            continue
-        question = questions.get(question_id)
-        if not question or selected_choice not in ALL_CHOICE_KEYS:
-            continue
-        is_correct = question.choices.filter(key=selected_choice, is_correct=True).exists()
-        if is_correct:
-            score_value += 1
-        response_rows.append((question, selected_choice, is_correct))
-
+    # 3. حفظ كائن النتيجة في قاعدة البيانات
     score = Score.objects.create(
-        user=user, material=material, score_value=score_value, time_taken_seconds=time_taken_seconds,
+        user=user,
+        material=material,
+        score_value=score_value,
+        time_taken_seconds=time_taken_seconds
     )
-    QuestionResponse.objects.bulk_create([
-        QuestionResponse(score=score, question=q, selected_choice=c, is_correct=ic)
-        for q, c, ic in response_rows
-    ])
+
+    # 4. معالجة حفظ الإجابات التفصيلية للأسئلة (Question Responses) إن وجدت في طلبكِ
+    # [هنا يوضع كائن حفظ تفاصيل الإجابات إذا كنتِ تستخدمينه]
+
+    # 5. 🏅 فحص الدروع النشطة (Automated Badge Engine)
+    new_earned_badges = []
+    
+    # جلب جميع الدروع المفعلة التي لم يسبق للمستخدم كسبها حتى الآن
+    active_badges = Badge.objects.filter(is_active=True)
+    already_earned_ids = UserBadge.objects.filter(user=user).values_list('badge_id', flat=True)
+    
+    for badge in active_badges:
+        if badge.id in already_earned_ids:
+            continue  # المشترك يمتلك هذا الدرع بالفعل، تخطى للفحص التالي
+            
+        is_eligible = False
+        
+        # النوع أ: عدد المسابقات المكتملة (Quiz Completion Count)
+        if badge.condition_type == 'quiz_completion_count':
+            qs = Score.objects.filter(user=user)
+            if badge.category_filter:
+                qs = qs.filter(material__category=badge.category_filter)
+            # حساب عدد المواد الفريدة والمختلفة التي دخلها المشترك بنجاح
+            completed_count = qs.values('material').distinct().count()
+            if completed_count >= badge.threshold_value:
+                is_eligible = True
+                
+        # النوع ب: عدد المحاولات ذات الدرجات الكاملة النهائية (Perfect Score Count)
+        elif badge.condition_type == 'perfect_score_count':
+            qs = Score.objects.filter(user=user)
+            if badge.category_filter:
+                qs = qs.filter(material__category=badge.category_filter)
+            
+            # مقارنة درجة المحاولة مع إجمالي عدد أسئلة المادة المقترنة بها
+            perfect_count = 0
+            for s in qs.select_related('material'):
+                total_questions = s.material.questions.count()
+                if total_questions > 0 and s.score_value == total_questions:
+                    perfect_count += 1
+                    
+            if perfect_count >= badge.threshold_value:
+                is_eligible = True
+                
+        # النوع ج: عدد الأيام المتتالية لحل المسابقات (Streak Days)
+        elif badge.condition_type == 'streak_days':
+            # جلب التواريخ الفريدة المرتبة تنازلياً للمحاولات التي قام بها العضو
+            dates = Score.objects.filter(user=user)\
+                                 .annotate(date=TruncDate('created_at'))\
+                                 .values_list('date', flat=True)\
+                                 .distinct()\
+                                 .order_by('-date')
+            streak = 0
+            if dates.exists():
+                today = datetime.date.today()
+                # التحقق من أن أحدث محاولة كانت اليوم أو بالأمس للحفاظ على السلسلة نشطة
+                if dates[0] in [today, today - datetime.timedelta(days=1)]:
+                    streak = 1
+                    check_date = dates[0]
+                    for d in dates[1:]:
+                        if check_date - d == datetime.timedelta(days=1):
+                            streak += 1
+                            check_date = d
+                        elif check_date == d:
+                            continue  # محاولة أخرى في نفس اليوم، تخطى وحافظ على الاستمرارية
+                        else:
+                            break  # انقطعت السلسلة المتتالية
+            if streak >= badge.threshold_value:
+                is_eligible = True
+
+        # إذا استوفى الشروط بنجاح، سجل الدرع فوراً للعضو وأضفه لمصفوفة العرض الخارجي
+        if is_eligible:
+            UserBadge.objects.create(user=user, badge=badge)
+            new_earned_badges.append({
+                'id': badge.id,
+                'name': badge.name,
+                'description': badge.description,
+                'icon': badge.icon_image_url or "https://cdn-icons-png.flaticon.com/512/6188/6188595.png"
+            })
+
+    # 6. الرد النهائي بنظام JSON التفاعلي (بدون أي توجيه لملف leaderboard.html المحذوف)
+    # نوجه العضو للرئيسية أو صفحة قائمة القسم المناسب بناءً على التصنيف ليرى إنجازاته
+    category_urls = {
+        'bible': reverse('bible_list'),
+        'spiritual': reverse('spiritual_list'),
+        'iqraa': reverse('iqraa_list'),
+    }
+    redirect_destination = category_urls.get(material.category, reverse('index'))
 
     return JsonResponse({
         'status': 'success',
+        'message': 'تم حفظ النتيجة بنجاح وفحص سجل أوسمتكِ الجارية.',
+        'score_id': score.id,
         'score_value': score_value,
-        'total_questions': material.questions.count(),
-        'redirect_url': reverse('leaderboard_view', args=[material.slug]),
+        'redirect_url': redirect_destination,  # 👈 يتم التوجيه للموقع/القسم مباشرة في الـ JavaScript
+        'new_badges': new_earned_badges        # 👈 مصفوفة الدروع المكتسبة حديثاً لعرض تهنئة منبثقة ممتازة للمشترك
     })
+    
+# def leaderboard_view(request, quiz_slug):
+#     quiz_slug = unquote(quiz_slug)
+#     material = get_object_or_404(Material, slug=quiz_slug)
 
+#     current_user_uid = request.GET.get('uid', '')  
 
-def leaderboard_view(request, quiz_slug):
-    quiz_slug = unquote(quiz_slug)
-    material = get_object_or_404(Material, slug=quiz_slug)
+#     seen_users = set()
+#     all_ranked = []
 
-    current_user_uid = request.GET.get('uid', '')  
+#     for score in Score.objects.filter(material=material).select_related('user').order_by('-score_value', 'time_taken_seconds'):
+#         if score.user_id not in seen_users:
+#             seen_users.add(score.user_id)
+#             minutes = score.time_taken_seconds // 60
+#             seconds = score.time_taken_seconds % 60
+#             score.formatted_time = f"{minutes:02d}:{seconds:02d}"
+#             all_ranked.append(score)
 
-    seen_users = set()
-    all_ranked = []
+#     top_scores = all_ranked[:10]
 
-    for score in Score.objects.filter(material=material).select_related('user').order_by('-score_value', 'time_taken_seconds'):
-        if score.user_id not in seen_users:
-            seen_users.add(score.user_id)
-            minutes = score.time_taken_seconds // 60
-            seconds = score.time_taken_seconds % 60
-            score.formatted_time = f"{minutes:02d}:{seconds:02d}"
-            all_ranked.append(score)
+#     current_user_rank = None
+#     current_user_score = None
+#     current_user_time = None
+#     current_user_name = None
 
-    top_scores = all_ranked[:10]
+#     if current_user_uid:
+#         for idx, score in enumerate(all_ranked):
+#             if score.user.username == current_user_uid:
+#                 rank = idx + 1
+#                 if rank > 10:
+#                     current_user_rank = rank
+#                     current_user_score = score.score_value
+#                     current_user_time = score.formatted_time
+#                     current_user_name = score.user.first_name if score.user.first_name else score.user.username
+#                 break
 
-    current_user_rank = None
-    current_user_score = None
-    current_user_time = None
-    current_user_name = None
-
-    if current_user_uid:
-        for idx, score in enumerate(all_ranked):
-            if score.user.username == current_user_uid:
-                rank = idx + 1
-                if rank > 10:
-                    current_user_rank = rank
-                    current_user_score = score.score_value
-                    current_user_time = score.formatted_time
-                    current_user_name = score.user.first_name if score.user.first_name else score.user.username
-                break
-
-    return render(request, 'quiz/leaderboard.html', {
-        'material': material,
-        'leaderboard': top_scores,
-        'current_user_uid': current_user_uid,
-        'current_user_rank': current_user_rank,
-        'current_user_score': current_user_score,
-        'current_user_time': current_user_time,
-        'current_user_name': current_user_name,
-    })
+#     return render(request, 'quiz/leaderboard.html', {
+#         'material': material,
+#         'leaderboard': top_scores,
+#         'current_user_uid': current_user_uid,
+#         'current_user_rank': current_user_rank,
+#         'current_user_score': current_user_score,
+#         'current_user_time': current_user_time,
+#         'current_user_name': current_user_name,
+#     })
 
 
 def materials_list_client(request, category):

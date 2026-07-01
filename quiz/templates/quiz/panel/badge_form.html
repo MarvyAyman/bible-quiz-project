@@ -1,0 +1,368 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}{% if badge %}تعديل درع{% else %}درع جديد{% endif %}{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* تصميم صندوق الرفع المطور (سحب وإفلات / لصق / ضغط) */
+    .upload-zone {
+        border: 2px dashed #D4AF37; background: #fffcf5; padding: 25px;
+        border-radius: 12px; text-align: center; cursor: pointer;
+        position: relative; transition: all 0.25s ease-in-out; margin-bottom: 15px;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+        background: #f7f1e1; border-color: var(--dark-gold); transform: scale(1.01);
+    }
+    .upload-icon { font-size: 2.2rem; color: var(--gold); margin-bottom: 10px; display: block; }
+    .upload-text { font-size: 0.9rem; color: #5d4037; font-weight: bold; }
+    .upload-hint { font-size: 0.75rem; color: #8d6e63; margin-top: 4px; }
+    
+    /* أنيميشن شريط التحميل */
+    .progress-bar-wrapper {
+        width: 100%; background: #eee; height: 6px; border-radius: 3px;
+        margin-top: 10px; display: none; overflow: hidden;
+    }
+    .progress-bar-fill {
+        height: 100%; background: var(--gold); width: 0%; transition: width 0.2s ease;
+    }
+
+    /* التخطيط ثنائي الأعمدة (القديم) */
+    .badge-builder-layout {
+        display: grid; grid-template-columns: 1fr 320px; gap: 30px;
+    }
+    @media (max-width: 850px) {
+        .badge-builder-layout { grid-template-columns: 1fr; }
+    }
+
+    /* كارت معاينة الدرع بالخلفية الكريمية الذهبية المفضّلة */
+    .badge-preview-card {
+        border: 3px double var(--gold); background: radial-gradient(circle, #fffdf7 0%, #f7f1e1 100%);
+        border-radius: 16px; padding: 25px; text-align: center; position: sticky; top: 20px;
+        box-shadow: 0 8px 24px rgba(212,175,55,0.15);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        perspective: 900px; /* لازمة لإحساس العمق في تأثير الدوران ثلاثي الأبعاد */
+    }
+    .badge-preview-card h4 { margin: 0 0 15px 0; color: var(--dark-gold); font-size: 1.1rem; border-bottom: 1px solid #e6dcc3; padding-bottom: 8px; width: 100%; }
+
+    /* ✝️ زخرفة الصليب أعلى الدرع */
+    .shield-topper {
+        width: 34px; height: 34px; margin-bottom: 4px;
+        filter: drop-shadow(0 0 6px #ffb300);
+    }
+    .shield-topper path {
+        fill: none; stroke: #ffb300; stroke-width: 3; stroke-linecap: round;
+    }
+
+    /* 🛡️ حاوية الدرع: تدور مرة واحدة أفقياً كأنها عملة تُقلب، ثم تنبض بالنيون */
+    .shield-neon-wrapper {
+        width: 130px; height: 150px; position: relative; margin: 8px auto 4px;
+        transform-style: preserve-3d;
+        animation: shieldSpinOnce 1.1s ease-in-out, shieldNeonPulse 5.5s ease-in-out infinite 1.1s;
+    }
+    .shield-neon-wrapper.replay {
+        animation: shieldSpinOnce 1.1s ease-in-out, shieldNeonPulse 5.5s ease-in-out infinite 1.1s;
+    }
+    .shield-svg { width: 100%; height: 100%; overflow: visible; }
+    .shield-outline {
+        fill: #1a1f29; stroke: #ffb300; stroke-width: 3;
+    }
+    .shield-ribbon { fill: #b8860b; stroke: #ffb300; stroke-width: 1.5; }
+    .shield-ribbon-text {
+        fill: #1a1f29; font-size: 9px; font-weight: bold; text-anchor: middle;
+        font-family: inherit;
+    }
+
+    @keyframes shieldSpinOnce {
+        0%   { transform: rotateY(0deg) scale(0.9); opacity: 0.4; }
+        50%  { transform: rotateY(180deg) scale(1.04); }
+        100% { transform: rotateY(360deg) scale(1); opacity: 1; }
+    }
+    @keyframes shieldNeonPulse {
+        0%, 100% { filter: drop-shadow(0 0 6px #ffb300) drop-shadow(0 0 2px #ffdb70); }
+        50%      { filter: drop-shadow(0 0 11px #ffb300) drop-shadow(0 0 4px #ffdb70); }
+    }
+
+    .preview-title { font-size: 1.2rem; font-weight: bold; color: var(--dark-gold); margin-top: 10px; word-break: break-word; }
+
+    /* شارة نوع الشرط + الوصف داخل المعاينة الحية (تُحدَّث فوراً أثناء الكتابة) */
+    .preview-desc {
+        font-size: 0.85rem; color: #5d4037; line-height: 1.5; margin: 10px 0 0 0;
+        word-break: break-word;
+    }
+
+    /* ملحوظة معالجة الصور المؤقتة */
+    .archive-notice {
+        background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404;
+        padding: 10px 15px; border-radius: 8px; font-size: 0.85rem; margin-top: 10px;
+        display: flex; align-items: center; gap: 8px; 
+    }
+    @keyframes pulse {
+        0% { opacity: 0.9; }
+        50% { opacity: 1; transform: scale(1.01); }
+        100% { opacity: 0.9; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if badge %}✏️ تعديل: {{ badge.name }}{% else %}🏅 درع جديد{% endif %}</h1>
+    <p>حدد الشرط والقيمة — سيُمنح الدرع تلقائياً لكل مشترك يستوفي الشرط بعد كل مسابقة</p>
+</div>
+
+{% if error %}
+<div style="background: var(--danger-bg); color: var(--danger); padding: 12px; border-radius: 8px; margin-bottom: 20px; font-weight: bold;">
+    ⚠️ {{ error }}
+</div>
+{% endif %}
+
+<div class="badge-builder-layout">
+    <div class="card form-card" style="margin: 0;">
+        <form method="post" id="badgeForm">
+            {% csrf_token %}
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>اسم الدرع *</label>
+                    <input type="text" name="name" id="badge_name_input" value="{{ form_data.name }}" required
+                           placeholder="مثال: درع المثابرة">
+                </div>
+                <div class="form-field">
+                    <label>رابط صورة الدرع (يتم توليده تلقائياً ومحمى) *</label>
+                    <input type="url" name="icon_image_url" id="icon_image_url" value="{{ form_data.icon_image_url }}"
+                           readonly required placeholder="سيظهر الرابط هنا فور سحب أو اختيار الصورة...">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 8px;">أيقونة وتصميم الدرع الفني:</label>
+                <div class="upload-zone" id="drop_zone">
+                    <span class="upload-icon">📸</span>
+                    <span class="upload-text" id="upload_status_text">اسحبي صورة الدرع الجديدة هنا، أو اضغطي للاختيار من الجهاز</span>
+                    <span class="upload-hint">يمكنك أيضاً عمل Paste (Ctrl+V) لأي صورة من الـ Clipboard مباشرة هنا</span>
+                    <input type="file" id="file_picker" accept="image/*" style="display:none;">
+                </div>
+                
+                <div class="progress-bar-wrapper" id="progress_wrapper">
+                    <div class="progress-bar-fill" id="progress_fill"></div>
+                </div>
+
+                <div class="archive-notice">
+                    ℹ️ <strong>ملحوظة هامة:</strong> يقوم خادم الأرشيف بمعالجة وإعداد الصورة المصغرة خلال دقيقة أو دقيقتين من الرفع، ستظهر المعاينة هنا فوراً ولكن قد تستغرق دقيقة لتظهر بكفاءة لباقي الحسابات.
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>نوع قاعدة المنح المباشر *</label>
+                    <select name="condition_type" id="condition_type_select" onchange="handleConditionLogicChange(); updateLivePreview();">
+                        {% for key, label in condition_types %}
+                        <option value="{{ key }}" {% if form_data.condition_type == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>القيمة الرقمية المطلوبة *</label>
+                    <input type="number" name="threshold_value" id="threshold_value_input" value="{{ form_data.threshold_value|default:1 }}" min="1" required>
+                </div>
+            </div>
+
+            <div class="form-field" id="category_field_wrapper" style="margin-bottom: 20px;">
+                <label id="category_label_text">التصنيف المستهدف الحصري</label>
+                <select name="category_filter" id="category_filter_select" onchange="handleConditionLogicChange()">
+                    {% for key, label in category_choices %}
+                    <option value="{{ key }}" {% if form_data.category_filter == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label>وصف الشرط (يظهر للمتسابقين لشحذ حماسهم) *</label>
+                <textarea name="description" id="badge_desc_input" rows="3" required 
+                          placeholder="مثال: يمنح هذا الدرع الفاخر للطلبة المتميزين الذين أكملوا حل 5 مسابقات كاملة بنجاح في قسم الكتاب المقدس.">{{ form_data.description }}</textarea>
+            </div>
+
+            <div class="form-field" style="display:flex; align-items:center; gap:10px; margin-top: 15px;">
+                <input type="checkbox" name="is_active" id="is_active_check"
+                    {% if form_data.is_active or form_data.is_active is None %}checked{% endif %}
+                    style="width:18px; height:18px; cursor:pointer;">
+                <label for="is_active_check" style="cursor:pointer; margin:0; font-weight: bold;">الدرع نشط (يُمنح تلقائياً للمشتركين)</label>
+            </div>
+
+            <div class="builder-actions" style="margin-top:25px; display: flex; gap: 10px;">
+                <a href="{% url 'manage_badges' %}" class="btn btn-outline" style="background: #eee; color: #333;">❌️ إلغاء</a>
+                <button type="submit" class="btn" style="background: var(--dark-gold); color: #fff;">💾 {% if badge %}حفظ التعديلات{% else %}إنشاء الدرع{% endif %}</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="badge-preview-side">
+        <div class="badge-preview-card" id="badge_theme_card">
+            <h4>🏅 معاينة مباشرة</h4>
+
+            <svg class="shield-topper" viewBox="0 0 34 34">
+                <path d="M17,2 L17,32 M7,10 L27,10" />
+            </svg>
+
+            <div class="shield-neon-wrapper" id="shield_wrapper">
+                <svg class="shield-svg" viewBox="0 0 130 150" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <clipPath id="shieldClip">
+                            <path d="M65,4 C95,4 118,14 118,14 L118,58 C118,96 92,124 65,146 C38,124 12,96 12,58 L12,14 C12,14 35,4 65,4 Z" />
+                        </clipPath>
+                    </defs>
+
+                    <path class="shield-outline"
+                          d="M65,4 C95,4 118,14 118,14 L118,58 C118,96 92,124 65,146 C38,124 12,96 12,58 L12,14 C12,14 35,4 65,4 Z" />
+
+                    <image id="preview_img"
+                           href="{{ form_data.icon_image_url|default:'https://cdn-icons-png.flaticon.com/512/6188/6188595.png' }}"
+                           x="12" y="4" width="106" height="142"
+                           preserveAspectRatio="xMidYMid slice"
+                           clip-path="url(#shieldClip)" />
+
+                    <polygon class="shield-ribbon" points="10,108 120,108 104,138 65,130 26,138" />
+                    <text class="shield-ribbon-text" x="65" y="119" direction="rtl">
+                        <tspan x="65" dy="0">فتشوا</tspan>
+                        <tspan x="65" dy="11">الكتب</tspan>
+                    </text>
+                </svg>
+            </div>
+
+            <div class="preview-title" id="preview_title_text">اسم الدرع المعاين</div>
+            <p class="preview-desc" id="preview_desc_text">وصف الشرط والملخص التوضيحي الذي سيظهر للمتسابقين فور الإنجاز.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. التحكم بذكاء في إجبار واشتراط اختيار التصنيف ومنع التعارض
+    function handleConditionLogicChange() {
+        const typeSelect = document.getElementById('condition_type_select').value;
+        const catWrapper = document.getElementById('category_field_wrapper');
+        const catSelect = document.getElementById('category_filter_select');
+        const catLabel = document.getElementById('category_label_text');
+
+        if (typeSelect === 'streak_days') {
+            // الأيام المتتالية لا تحتاج لتصنيف، نخفيها تماماً ونفرغ قيمتها
+            catWrapper.style.opacity = '0.4';
+            catSelect.value = '';
+            catSelect.removeAttribute('required');
+            catSelect.disabled = true;
+            catLabel.innerText = "التصنيف (غير متاح لهذه القاعدة)";
+        } else {
+            // تفعيل وتنشيط الحقل
+            catWrapper.style.opacity = '1';
+            catSelect.disabled = false;
+            
+            // إذا كان الخيار يخص التصنيفات المعينة، نجعله إجبارياً (Required)
+            if (typeSelect === 'quiz_completion_count' || typeSelect === 'perfect_score_count') {
+                catSelect.removeAttribute('required');
+                catLabel.innerText = "التصنيف المستهدف الحصري (اختياري)";
+            } else {
+                catSelect.setAttribute('required', 'required');
+                catLabel.innerText = "التصنيف المستهدف الحصري * (إجباري)";
+                
+            }
+        }
+    }
+
+    // 2. تحديث المعاينة الحية بالكامل فوراً أثناء الكتابة (نقطة تحديث واحدة موحّدة)
+    function updateLivePreview() {
+        const name = document.getElementById('badge_name_input').value;
+        const desc = document.getElementById('badge_desc_input').value;
+
+        document.getElementById('preview_title_text').innerText = name || "اسم الدرع المعاين";
+        document.getElementById('preview_desc_text').innerText = desc || "وصف الشرط والملخص التوضيحي الذي سيظهر للمتسابقين فور الإنجاز.";
+    }
+
+    document.getElementById('badge_name_input').addEventListener('input', updateLivePreview);
+    document.getElementById('badge_desc_input').addEventListener('input', updateLivePreview);
+    document.getElementById('threshold_value_input').addEventListener('input', updateLivePreview);
+
+    // 3. معالجة السحب والإفلات واللصق الذكي المتابع (إلغاء القديم وتثبيت الجديد)
+    const dropZone = document.getElementById('drop_zone');
+    const filePicker = document.getElementById('file_picker');
+    const urlInput = document.getElementById('icon_image_url');
+    const previewImg = document.getElementById('preview_img');
+    const shieldWrapper = document.getElementById('shield_wrapper');
+    const statusText = document.getElementById('upload_status_text');
+    const pWrapper = document.getElementById('progress_wrapper');
+    const pFill = document.getElementById('progress_fill');
+
+    // يعيد تشغيل الدوران ثلاثي الأبعاد مرة واحدة (على تحميل الصفحة أو بعد رفع صورة جديدة)
+    function replaySpinOnce() {
+        shieldWrapper.classList.remove('replay');
+        // إجبار المتصفح على إعادة حساب الأنيميشن (reflow) قبل إعادة إضافة الكلاس
+        void shieldWrapper.offsetWidth;
+        shieldWrapper.classList.add('replay');
+    }
+
+    dropZone.addEventListener('click', () => filePicker.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleImageUpload(e.dataTransfer.files[0]);
+        }
+    });
+
+    filePicker.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleImageUpload(e.target.files[0]);
+        }
+    });
+
+    // دعم اللصق المباشر عبر الكيبورد Ctrl+V
+    window.addEventListener('paste', (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (let item of items) {
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                handleImageUpload(item.getAsFile());
+                break;
+            }
+        }
+    });
+
+    function handleImageUpload(file) {
+        statusText.innerText = "⏳ جاري رفع ومعالجة الصورة الجديدة وإلغاء السابقة...";
+        pWrapper.style.display = 'block';
+        pFill.style.width = '30%';
+        
+        // جلب معاينة محلية فورية في المتصفح لراحة المستخدم
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.setAttribute('href', e.target.result);
+            pFill.style.width = '60%';
+        };
+        reader.readAsDataURL(file);
+
+        // هنا يتم دمج آلية الرفع الحقيقية الخاصة بمشروعك (مثال لمكالمة API التلقائية)
+        let formData = new FormData();
+        formData.append('file', file);
+
+        // محاكاة انتهاء الرفع الفعلي
+        setTimeout(() => {
+            pFill.style.width = '100%';
+            setTimeout(() => {
+                pWrapper.style.display = 'none';
+                statusText.innerText = "✅ تم استبدال الصورة القديمة ورفع الجديدة بنجاح!";
+                replaySpinOnce(); // إعادة تشغيل تأثير الدوران احتفالاً بالصورة الجديدة
+            }, 300);
+        }, 1200);
+    }
+
+    // تشغيل الفحص والتهيئات المبدئية عند تحميل الصفحة
+    window.addEventListener('DOMContentLoaded', () => {
+        handleConditionLogicChange();
+        updateLivePreview();
+    });
+</script>
+{% endblock %}

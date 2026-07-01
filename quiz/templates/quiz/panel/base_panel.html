@@ -202,6 +202,9 @@
         <h2>📖 لوحة التحكم</h2>
         <a href="{% url 'panel_dashboard' %}" class="{% if active == 'dashboard' %}active{% endif %}">📊 الإحصائيات العامة</a>
         <a href="{% url 'manage_materials' %}" class="{% if active == 'manage_materials' %}active{% endif %}">⚙️ إدارة المحتوى</a>
+        <a href="{% url 'manage_badges' %}" class="{% if active == 'manage_badges' %}active{% endif %}">🏅 إدارة الدروع</a>
+    
+        <div class="divider" style="margin: 10px 0; border-top: 1px solid var(--light-border);"></div>
         
         <a href="{% url 'create_material_step1' %}?category=bible" class="{% if active == 'create_material_step1' and request.GET.category == 'bible' %}active{% endif %}">📖 كتاب مقدس</a>
         <!-- <a href="{% url 'create_material_step1' %}?category=spiritual" class="{% if active == 'create_material_step1' and request.GET.category == 'spiritual' %}active{% endif %}">📚 كتاب روحي</a> -->

@@ -305,3 +305,47 @@ class QuestionResponse(models.Model):
     def __str__(self):
 
         return f"استجابة {self.score.user.username} لسؤال {self.question_id}"
+   
+   
+# أضيفي هذه الموديلات في نهاية ملف quiz/models.py الحالي
+
+class Badge(models.Model):
+    CONDITION_CHOICES = [
+        ('quiz_completion_count', 'عدد مسابقات مكتملة'),
+        ('perfect_score_count', 'عدد مرات الحصول على الدرجة الكاملة'),
+        ('category_completion_count', 'عدد مسابقات مكتملة من تصنيف معين'),
+        ('streak_days', 'أيام متتالية'),
+    ]
+
+    name = models.CharField(max_length=100, verbose_name="اسم الدرع")
+    description = models.TextField(verbose_name="وصف الشرط")
+    icon_image_url = models.URLField(max_length=500, blank=True, default='', verbose_name="رابط صورة الدرع")
+    condition_type = models.CharField(max_length=30, choices=CONDITION_CHOICES, verbose_name="نوع الشرط")
+    threshold_value = models.PositiveIntegerField(verbose_name="القيمة المطلوبة")
+    category_filter = models.CharField(
+        max_length=20, choices=Material.CATEGORY_CHOICES, blank=True, default='',
+        verbose_name="تصنيف المحتوى (اختياري)"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="الدرع نشط")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "درع"
+        verbose_name_plural = "الدروع"
+
+    def __str__(self):
+        return self.name
+
+
+class UserBadge(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="badges")
+    badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name="users_earned")
+    earned_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "درع مشترك"
+        verbose_name_plural = "دروع المشتركين"
+        unique_together = [('user', 'badge')]  # يمنع الحصول على نفس الدرع مرتين
+
+    def __str__(self):
+        return f"{self.user.username} - {self.badge.name}" 
