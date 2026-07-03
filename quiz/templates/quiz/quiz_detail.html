@@ -8,6 +8,7 @@
     <link rel="icon" type="image/jpeg" href="https://www.image2url.com/r2/default/images/1781534601894-1d027ee9-d4ec-424c-a2db-c657d7b391c1.jpg">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Marhey:wght@300..700&display=swap');
         :root {
             --gold: #D4AF37; --dark-gold: #996515; --beige: #F5F5DC;
             --white: #FFFFFF; --text-color: #3e2723; --success: #28a745; --error: #dc3545;
@@ -166,6 +167,92 @@
         .spotify-timeline { display: flex; align-items: center; gap: 12px; width: 100%; font-size: 0.75rem; color: #a7a7a7; }
         .spotify-progress-bg { flex: 1; height: 4px; background: #4f4f4f; border-radius: 2px; cursor: pointer; position: relative; }
         .spotify-progress-fill { height: 100%; background: #1db954; width: 0%; border-radius: 2px; }
+
+        /* ===================================================================== */
+        /* شاشة النتيجة والأوسمة (Result + Badge Sequence Flow)                   */
+        /* ===================================================================== */
+        #result-ui { position: relative; min-height: 460px; }
+
+        .flow-card {
+            position: absolute; top: 0; left: 0; width: 100%; box-sizing: border-box;
+            padding: 10px 5px; text-align: center;
+            opacity: 0; transform: scale(0.92); pointer-events: none;
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .flow-card.active { position: relative; opacity: 1; transform: scale(1); pointer-events: auto; z-index: 10; }
+        .flow-card.exit { opacity: 0; transform: translateX(-100px) scale(0.9); pointer-events: none; }
+
+        .score-badge-circle {
+            width: 130px; height: 130px; border-radius: 50%;
+            background: radial-gradient(circle, #fff 40%, #f9f3e6 100%);
+            border: 6px solid #fdf6e9; box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+            margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;
+        }
+        .score-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .score-number { font-size: 2.6rem; font-weight: 700; color: var(--dark-gold); line-height: 1; }
+        .score-total { font-size: 0.85rem; color: #8d6e63; margin-top: 4px; }
+
+        @keyframes scorePop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.25); filter: drop-shadow(0 0 15px rgba(212, 175, 55, 0.5)); }
+            100% { transform: scale(1); }
+        }
+        .pulse-active { animation: scorePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes ambientGlow {
+            0% { box-shadow: 0 8px 20px rgba(0,0,0,0.04), 0 0 0 0px rgba(212, 175, 55, 0.25); }
+            100% { box-shadow: 0 8px 20px rgba(0,0,0,0.04), 0 0 0 12px rgba(212, 175, 55, 0); }
+        }
+        .glow-active { animation: ambientGlow 1.5s ease-out infinite; }
+
+        .congrats-title { font-size: 1.5rem; color: var(--text-color); margin: 10px 0; font-weight: 700; }
+        .congrats-text { color: #666; font-size: 0.95rem; line-height: 1.6; margin: 0 0 25px; }
+
+        .badge-steps { display: flex; justify-content: center; gap: 6px; margin-bottom: 15px; }
+        .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0d5be; transition: all 0.3s ease; }
+        .step-dot.active { background: var(--dark-gold); width: 20px; border-radius: 4px; }
+
+        .ornament { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 12px 0; color: var(--gold); }
+        .ornament::before, .ornament::after { content: ''; height: 1px; flex-grow: 1; background: linear-gradient(to right, transparent, var(--gold), transparent); }
+        .ornament-icon { font-size: 18px; }
+
+        .badge-photo-frame { position: relative; margin: 15px auto 10px; width: 190px; perspective: 900px; }
+        .image-container {
+            position: relative; width: 190px; height: 190px;
+            background: radial-gradient(circle, #ffffff 0%, #f9f3e6 100%);
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            border: 8px solid #fdf6e9; box-shadow: inset 0 0 20px rgba(0,0,0,0.03);
+            overflow: hidden; opacity: 0;
+        }
+        .active .image-container { animation: shieldSpinOnce 1.2s ease-in-out forwards; }
+        @keyframes shieldSpinOnce {
+            0%   { transform: rotateY(-180deg) scale(0.9); opacity: 0; }
+            100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+        }
+        .badge-photo { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+        .banner-wrapper {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%) translateY(20px);
+            width: 100%; display: flex; justify-content: center; z-index: 20; pointer-events: none; opacity: 0;
+        }
+        .active .banner-wrapper { animation: bannerFadeInUp 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 1.2s forwards; }
+        @keyframes bannerFadeInUp {
+            0%   { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .banner { border-top: 3px solid var(--dark-gold); border-bottom: 3px solid var(--dark-gold); text-align: center; margin: 0 auto; position: relative; width: 215px; }
+        .banner h2 {
+            color: #fff; background: var(--gold); padding: 5px 16px; text-align: center;
+            border: 1px dashed #fff; border-right: none; border-left: none;
+            line-height: normal; margin: 0; position: relative;
+            font-family: 'Marhey', serif; font-weight: 700; font-size: 0.9rem; white-space: nowrap;
+        }
+        .banner h2::after { content: ""; position: absolute; display: block; bottom: 0; right: -13px; border: 13px solid var(--dark-gold); border-right: 7px solid transparent; border-left-width: 7px; }
+        .banner h2::before { content: ""; position: absolute; display: block; bottom: 0; left: -13px; border: 13px solid var(--dark-gold); border-left: 7px solid transparent; border-right-width: 7px; }
+
+        .preview-title { font-size: 1.35rem; font-weight: 700; color: var(--text-color); margin: 10px 0; }
+        .preview-desc { font-size: 0.9rem; color: #666; line-height: 1.7; margin: 0; padding: 0 5px; }
+        .footer-ornament { margin-top: 15px; color: var(--gold); font-size: 16px; opacity: 0.6; }
     </style>
 </head>
 <body>
@@ -234,6 +321,51 @@
 
         <div id="loading-ui" class="loading-screen">
             <h3 style="color: var(--dark-gold);">جاري فحص وتأكيد هويتك وحفظ النتيجة...</h3>
+        </div>
+
+        <div id="result-ui" class="hidden">
+            <!-- المشهد الأول: كارت النتيجة مع عداد الأرقام -->
+            <div class="flow-card active" id="scoreCard">
+                <div class="score-badge-circle" id="scoreCircle">
+                    <div class="score-container">
+                        <span class="score-number" id="currentScore">0</span>
+                        <span class="score-total">الإجابات الصحيحة</span>
+                    </div>
+                </div>
+                <h3 class="congrats-title" id="resultTitle">أداء ممتاز ومبهر!</h3>
+                <p class="congrats-text">لقد اجتزت هذه المسابقة بنجاح. استمر في السعي وصقل معرفتك دائماً.</p>
+                <div id="actionArea">
+                    <button class="action-btn" style="width: 100%; padding: 14px; border-radius: 12px;" id="scoreActionBtn" onclick="startBadgeSequence()">
+                        <span id="btnTriggerText">التالي: استلام الأوسمة</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- المشهد الثاني: كارت استعراض الأوسمة المفتوحة بالتتابع -->
+            <div class="flow-card" id="badgeCard">
+                <div class="badge-steps" id="badgeDotsContainer"></div>
+                <div class="preview-header">
+                    <h4 id="badgeSequenceTitle" style="margin:0; color: var(--text-color); font-size: 1.2rem; font-weight: 700;">🎉 وسام جديد</h4>
+                </div>
+                <div class="ornament"><span class="ornament-icon">✧</span></div>
+                <div class="badge-photo-frame">
+                    <div class="image-container" id="shieldContainer">
+                        <img class="badge-photo" id="badgeImg" src="" alt="أيقونة الدرع">
+                    </div>
+                    <div class="banner-wrapper" id="ribbonWrapper">
+                        <div class="banner"><h2 id="badgeRibbonText">{{ material.source_name|default:"فتشوا الكتب" }}</h2></div>
+                    </div>
+                </div>
+                <div class="preview-title" id="badgeTitle">اسم الدرع</div>
+                <div class="ornament"><span class="ornament-icon">✧</span></div>
+                <p class="preview-desc" id="badgeDesc">وصف الدرع</p>
+                <div class="footer-ornament">❦</div>
+                <div style="margin-top: 25px;">
+                    <button class="action-btn" style="width: 100%; padding: 14px; border-radius: 12px;" id="badgeActionBtn" onclick="nextBadge()">
+                        <span>الوسام التالي</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -599,8 +731,139 @@
             body: JSON.stringify({ time_taken_seconds: elapsedSeconds, answers: answers })
         })
         .then(res => res.json())
-        .then(data => { window.location.href = data.redirect_url || 'leaderboard/'; })
-        .catch(() => { window.location.href = 'leaderboard/'; });
+        .then(data => {
+            if (data.status === 'success') {
+                showResultFlow(data);
+            } else {
+                window.location.href = data.redirect_url || '/';
+            }
+        })
+        .catch(() => { window.location.href = '/'; });
+    }
+
+    // ===================================================================
+    // شاشة النتيجة والأوسمة (Result + Badge Sequence Flow)
+    // ===================================================================
+    let finalRedirectUrl = '/';
+    let unlockedBadges = [];
+    let currentBadgeIndex = 0;
+
+    function showResultFlow(data) {
+        finalRedirectUrl = data.redirect_url || '/';
+        unlockedBadges = data.new_badges || [];
+
+        document.getElementById('loading-ui').style.display = 'none';
+        document.getElementById('result-ui').classList.remove('hidden');
+
+        const btnTriggerText = document.getElementById('btnTriggerText');
+        if (unlockedBadges.length > 1) {
+            btnTriggerText.innerText = `التالي: استلام أوسمتك (${unlockedBadges.length} أوسمة) 🎉`;
+        } else if (unlockedBadges.length === 1) {
+            btnTriggerText.innerText = 'التالي: استلام وسامك 🎉';
+        } else {
+            document.getElementById('actionArea').innerHTML =
+                `<button class="action-btn" style="width: 100%; padding: 14px; border-radius: 12px;" onclick="finishFlow()">إنهاء واستكشاف المزيد</button>`;
+        }
+
+        animateScoreCounter(data.score_value, data.total_questions);
+    }
+
+    function animateScoreCounter(targetScore, totalQuestions) {
+        const scoreElement = document.getElementById('currentScore');
+        const scoreCircle = document.getElementById('scoreCircle');
+        const countDuration = 1200;
+        let startTimestamp = null;
+
+        function step(timestamp) {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / countDuration, 1);
+            const easedProgress = progress * (2 - progress);
+            const currentCount = Math.floor(easedProgress * targetScore);
+            scoreElement.innerText = `${currentCount}/${totalQuestions}`;
+
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            } else {
+                scoreElement.innerText = `${targetScore}/${totalQuestions}`;
+                scoreElement.classList.add('pulse-active');
+                setTimeout(() => { scoreCircle.classList.add('glow-active'); }, 200);
+            }
+        }
+        window.requestAnimationFrame(step);
+    }
+
+    function startBadgeSequence() {
+        const scoreCard = document.getElementById('scoreCard');
+        const badgeCard = document.getElementById('badgeCard');
+
+        scoreCard.classList.add('exit');
+        scoreCard.classList.remove('active');
+
+        currentBadgeIndex = 0;
+        renderBadgeData(currentBadgeIndex);
+        buildSequenceDots();
+
+        setTimeout(() => { badgeCard.classList.add('active'); }, 150);
+    }
+
+    function renderBadgeData(index) {
+        const badge = unlockedBadges[index];
+
+        document.getElementById('badgeSequenceTitle').innerText = `🎉 وسام مفتوح (${index + 1} من ${unlockedBadges.length})`;
+        document.getElementById('badgeTitle').innerText = badge.name;
+        document.getElementById('badgeDesc').innerText = badge.description;
+        document.getElementById('badgeImg').setAttribute('src', badge.icon);
+
+        const actionBtn = document.getElementById('badgeActionBtn');
+        if (index === unlockedBadges.length - 1) {
+            actionBtn.innerHTML = `<span>إنهاء واستكشاف المزيد</span>`;
+        } else {
+            actionBtn.innerHTML = `<span>الوسام التالي</span>`;
+        }
+
+        updateActiveDot(index);
+    }
+
+    function nextBadge() {
+        if (currentBadgeIndex === unlockedBadges.length - 1) {
+            finishFlow();
+            return;
+        }
+
+        const shieldContainer = document.getElementById('shieldContainer');
+        const ribbonWrapper = document.getElementById('ribbonWrapper');
+
+        shieldContainer.style.animation = 'none';
+        ribbonWrapper.style.animation = 'none';
+        void shieldContainer.offsetWidth; // إعادة ضبط الأنيميشن قبل إعادة تشغيله
+
+        currentBadgeIndex++;
+        renderBadgeData(currentBadgeIndex);
+
+        shieldContainer.style.animation = '';
+        ribbonWrapper.style.animation = '';
+    }
+
+    function buildSequenceDots() {
+        const container = document.getElementById('badgeDotsContainer');
+        container.innerHTML = '';
+        unlockedBadges.forEach((_, i) => {
+            const dot = document.createElement('div');
+            dot.className = `step-dot ${i === 0 ? 'active' : ''}`;
+            dot.id = `dot_${i}`;
+            container.appendChild(dot);
+        });
+    }
+
+    function updateActiveDot(index) {
+        unlockedBadges.forEach((_, i) => {
+            const dot = document.getElementById(`dot_${i}`);
+            if (dot) dot.classList.toggle('active', i === index);
+        });
+    }
+
+    function finishFlow() {
+        window.location.href = finalRedirectUrl;
     }
 
     _supabase.auth.onAuthStateChange((event, session) => { if (session) userToken = session.access_token; });

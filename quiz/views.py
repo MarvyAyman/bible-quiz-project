@@ -74,7 +74,7 @@ def quiz_view(request, quiz_slug):
     questions_data = []
     
     for q in material.questions.prefetch_related('choices').all():
-        choices = [{'key': c.key, 'text': c.text} for c in q.choices.all()]
+        choices = [{'key': c.key, 'text': c.text} for c in q.choices.all() if c.text.strip()]
         questions_data.append({
             'id': q.id,
             'text': q.text,
@@ -268,12 +268,47 @@ def submit_score(request, quiz_slug):
 
     try:
         data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
-        score_value = int(data.get('score_value', 0))
         time_taken_seconds = int(data.get('time_taken_seconds', 0))
-        
-    except (ValueError, TypeError, json.JSONDecodeError):        return JsonResponse({'status': 'error', 'message': 'بيانات النتيجة غير صالحة.'}, status=400)
+        answers = data.get('answers', [])
+        if isinstance(answers, str):
+            answers = json.loads(answers or '[]')
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'بيانات النتيجة غير صالحة.'}, status=400)
 
-    # 3. حفظ كائن النتيجة في قاعدة البيانات
+    # 3. تصحيح الإجابات وحساب الدرجة من داخل السيرفر مباشرة
+    # ⚠️ لا يجب الوثوق بأي "score_value" قادمة من العميل لأنها قابلة للتلاعب بسهولة،
+    # لذلك نعيد فحص كل إجابة مقابل الاختيار الصحيح المخزن فعلياً بقاعدة البيانات.
+    total_questions = material.questions.count()
+    score_value = 0
+    responses_to_create = []
+
+    quiz_questions = {
+        q.id: q for q in material.questions.prefetch_related('choices').all()
+    }
+
+    for answer in answers:
+        try:
+            question_id = int(answer.get('question_id'))
+        except (TypeError, ValueError, AttributeError):
+            continue
+
+        question = quiz_questions.get(question_id)
+        if not question:
+            continue
+
+        selected_choice = (answer.get('selected_choice') or '').strip().lower()
+        is_correct = bool(selected_choice) and selected_choice == question.first_correct_key
+
+        if is_correct:
+            score_value += 1
+
+        responses_to_create.append(QuestionResponse(
+            question=question,
+            selected_choice=selected_choice,
+            is_correct=is_correct
+        ))
+
+    # 4. حفظ كائن النتيجة في قاعدة البيانات بالدرجة المحسوبة والموثوقة من السيرفر
     score = Score.objects.create(
         user=user,
         material=material,
@@ -281,8 +316,10 @@ def submit_score(request, quiz_slug):
         time_taken_seconds=time_taken_seconds
     )
 
-    # 4. معالجة حفظ الإجابات التفصيلية للأسئلة (Question Responses) إن وجدت في طلبكِ
-    # [هنا يوضع كائن حفظ تفاصيل الإجابات إذا كنتِ تستخدمينه]
+    # 5. حفظ تفاصيل كل إجابة على حدة مرتبطة بمحاولة النتيجة أعلاه
+    for response in responses_to_create:
+        response.score = score
+    QuestionResponse.objects.bulk_create(responses_to_create)
 
     # 5. 🏅 فحص الدروع النشطة (Automated Badge Engine)
     new_earned_badges = []
@@ -361,20 +398,21 @@ def submit_score(request, quiz_slug):
 
     # 6. الرد النهائي بنظام JSON التفاعلي (بدون أي توجيه لملف leaderboard.html المحذوف)
     # نوجه العضو للرئيسية أو صفحة قائمة القسم المناسب بناءً على التصنيف ليرى إنجازاته
-    category_urls = {
-        'bible': reverse('bible_list'),
-        'spiritual': reverse('spiritual_list'),
-        'iqraa': reverse('iqraa_list'),
-    }
-    redirect_destination = category_urls.get(material.category, reverse('index'))
+    # category_urls = {
+    #     'bible': reverse('bible_list'),
+    #     'spiritual': reverse('spiritual_list'),
+    #     'iqraa': reverse('iqraa_list'),
+    # }
+    redirect_destination = reverse('index')
 
     return JsonResponse({
         'status': 'success',
         'message': 'تم حفظ النتيجة بنجاح وفحص سجل أوسمتكِ الجارية.',
         'score_id': score.id,
         'score_value': score_value,
-        'redirect_url': redirect_destination,  # 👈 يتم التوجيه للموقع/القسم مباشرة في الـ JavaScript
-        'new_badges': new_earned_badges        # 👈 مصفوفة الدروع المكتسبة حديثاً لعرض تهنئة منبثقة ممتازة للمشترك
+        'total_questions': total_questions,     # 👈 مطلوبة لعرض الدرجة بصيغة X / Y في شاشة النتيجة
+        'redirect_url': redirect_destination,   # 👈 التوجيه النهائي بعد انتهاء المستخدم من استعراض الأوسمة
+        'new_badges': new_earned_badges         # 👈 مصفوفة الدروع المكتسبة حديثاً لعرضها بالتتابع في شاشة النتيجة
     })
     
 # def leaderboard_view(request, quiz_slug):
@@ -428,7 +466,7 @@ def materials_list_client(request, category):
     materials = Material.objects.filter(is_active=True, category=category).order_by('source_name', 'chapter_number')
     category_title = CATEGORY_LABELS.get(category, "قائمة المسابقات")
     
-    return render(request, 'quiz/materials_list.html', {
+    return render(request, 'quiz/index.html', {
         'materials': materials,
         'category': category,
         'category_title': category_title
@@ -834,12 +872,13 @@ def create_material_step1(request, quiz_slug=None):
                 choices_to_create = []
                 for key in ['a', 'b', 'c', 'd']:
                     choice_text = request.POST.get(f'q{idx}_choice_{key}', '').strip()
-                    choices_to_create.append(QuestionChoice(
-                        question=question,
-                        key=key,
-                        text=choice_text,
-                        is_correct=(key == q_correct)
-                    ))
+                    if choice_text:  # skip empty ones
+                        choices_to_create.append(QuestionChoice(
+                            question=question,
+                            key=key,
+                            text=choice_text,
+                            is_correct=(key == q_correct)
+                        ))
                 QuestionChoice.objects.bulk_create(choices_to_create)
                 order += 1
             idx += 1
