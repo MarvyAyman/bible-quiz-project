@@ -3,7 +3,6 @@
 {% block title %}فتشوا الكتب - منصة المسابقات الكتابية والروحية{% endblock %}
 
 {% block extra_style %}
-/* توسيع الحاوية لتسمح بوضع الكروت بجانب بعضها بسلاسة */
 .container { max-width: 1200px; width: 100%; text-align: center; margin: 0 auto; padding: 0 20px; box-sizing: border-box; }
 .welcome-card {
     background: var(--white); border: 2px solid var(--gold); border-radius: 15px;
@@ -12,7 +11,6 @@
 h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
 .subtitle { font-size: 1.1rem; color: #7a6f5d; margin-bottom: 30px; }
 
-/* تصميم زر Google الرسمي الاحترافي */
 .google-btn {
     display: inline-flex; align-items: center; justify-content: center;
     background-color: #ffffff; color: #1f1f1f; border: 1px solid #747775;
@@ -29,7 +27,19 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
 .user-panel { background: #fffcf5; padding: 15px; border-radius: 10px; border: 1px dashed var(--gold); display: inline-flex; flex-direction: column; align-items: center; gap: 5px; }
 .user-name { font-weight: bold; color: var(--dark-gold); }
 
-/* تصميم أزرار الفلترة المطابقة للوحة التحكم */
+/* ── تبويبات علوية رئيسية: المسابقات مقابل خلاصة النشاط ─────────────────── */
+.main-nav-tabs {
+    display: inline-flex; gap: 12px; margin-bottom: 25px;
+    background: rgba(255, 255, 255, 0.5); padding: 6px; border-radius: 30px;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+.main-tab {
+    padding: 10px 24px; border: none; border-radius: 25px; background: transparent;
+    color: #6d4c41; font-family: inherit; font-size: 1rem; font-weight: 900; cursor: pointer; transition: 0.2s;
+}
+.main-tab.active { background: var(--gold); color: #fff; box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3); }
+
+/* ── فلترة الأقسام داخل تبويب المسابقات ──────────────────────────────────── */
 .filter-tabs { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center; direction: rtl; }
 .filter-tab {
     padding: 10px 20px; border: 2px solid var(--light-border); border-radius: 25px;
@@ -41,48 +51,75 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
 .filter-tab .count { opacity: 0.8; font-size: 0.85em; margin-right: 5px; background: rgba(0,0,0,0.05); padding: 2px 7px; border-radius: 10px; }
 .filter-tab.active .count { background: rgba(255,255,255,0.2); color: #fff; }
 
-/* شبكة كروت المسابقات المحدثة لتصبح 4 أعمدة متراصة بجانب بعضها */
-.quiz-grid {
-    display: grid; 
-    grid-template-columns: repeat(4, minmax(0, 1fr)); /* تقسيم متساوي لـ 4 أعمدة تماماً */
-    gap: 20px; 
-    margin-top: 20px; 
-    direction: rtl; 
-    text-align: right;
-}
+/* ── شبكة كروت المسابقات (تصميم Gemini الجديد) ──────────────────────────── */
+.quiz-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; margin-top: 20px; direction: rtl; text-align: right; }
 .quiz-card {
-    background: var(--white); border: 1px solid var(--light-border);
-    border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.02);
-    transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; justify-content: space-between;
+    background: var(--white); border-radius: 18px; padding: 24px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: transform 0.2s, box-shadow 0.2s;
+    display: flex; flex-direction: column; justify-content: space-between; position: relative;
 }
 .quiz-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(212, 175, 55, 0.12); }
 
 .quiz-category-tag {
-    font-size: 0.75rem; font-weight: bold; padding: 4px 10px; border-radius: 15px; display: inline-block; margin-bottom: 12px;
+    font-size: 0.75rem; font-weight: bold; padding: 4px 12px; border-radius: 15px;
+    display: inline-block; margin-bottom: 12px; position: absolute; right: 24px; top: 24px;
 }
 .tag-bible { background: #e3f2fd; color: #0d47a1; }
 .tag-spiritual { background: #f3e5f5; color: #4a148c; }
 .tag-iqraa { background: #efebe9; color: #3e2723; }
 
-.quiz-card h3 { margin: 0 0 10px 0; color: #3e2723; font-size: 1.15rem; font-weight: 700; line-height: 1.4; }
-.quiz-meta { color: #6d4c41; font-size: 0.88rem; margin-bottom: 20px; display: flex; flex-direction: column; gap: 5px; }
+.quiz-card h3 { margin: 40px 0 10px 0; color: #3e2723; font-size: 1.3rem; font-weight: 900; line-height: 1.4; }
+.quiz-meta { color: #6d4c41; font-size: 0.9rem; margin-bottom: 20px; display: flex; flex-direction: column; gap: 5px; }
 
-/* جعل الأزرار مرنة ومتناسقة داخل المساحة المتاحة للكارت */
 .quiz-actions { display: flex; gap: 8px; margin-top: auto; }
-.quiz-actions .btn { flex: 1; text-align: center; text-decoration: none; font-weight: bold; font-size: 0.85rem; padding: 8px; border-radius: 8px; white-space: nowrap; }
+.quiz-actions .btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    text-align: center; text-decoration: none; font-weight: bold; font-size: 1rem;
+    padding: 12px; border-radius: 12px; white-space: nowrap; background-color: var(--gold); color: #fff;
+}
+
+/* ── خلاصة النشاط (البوستات + التفاعلات) ─────────────────────────────────── */
+.feed-container { max-width: 580px; margin: 0 auto; text-align: right; }
+.feed-item { background: var(--white); border: 1px solid var(--light-border); border-radius: 18px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
+.feed-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.feed-initial-avatar { width: 40px; height: 40px; border-radius: 50%; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+.feed-user-meta h4 { margin: 0; font-size: 1rem; color: #3e2723; }
+.feed-time { font-size: 0.8rem; color: #8d6e63; opacity: 0.7; }
+
+.feed-content-display { background: #fffdf7; border: 1px dashed var(--gold); border-radius: 14px; padding: 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.badge-graphic { font-size: 2.6rem; width: 48px; text-align: center; flex-shrink: 0; }
+.badge-graphic img { width: 48px; height: 48px; object-fit: contain; }
+.badge-info-text { flex: 1; }
+.badge-title { font-size: 1.1rem; font-weight: 900; color: #3e2723; margin: 0 0 4px 0; }
+.badge-subtitle { font-size: 0.88rem; color: #6d4c41; margin: 0; line-height: 1.4; }
+
+.feed-actions { display: flex; align-items: center; justify-content: flex-start; gap: 16px; padding-top: 14px; border-top: 1px solid #f1f1f1; position: relative; }
+.spiritual-stats-container { display: flex; align-items: center; gap: 8px; min-height: 32px; flex-wrap: wrap; }
+
+.reaction-chip { display: flex; align-items: center; gap: 6px; background: #fdfbf7; border: 1px solid var(--light-border); padding: 6px 14px; border-radius: 20px; font-size: 0.95rem; color: #3e2723; cursor: pointer; user-select: none; font-weight: bold; transition: all 0.1s ease; }
+.reaction-chip.voted { background: #fff9e6; border-color: var(--gold); color: var(--gold); }
+
+.fb-reaction-wrapper { position: relative; display: inline-block; }
+.add-reaction-btn { background: var(--white); border: 1px solid var(--light-border); padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; cursor: pointer; color: #8d6e63; font-weight: bold; font-family: inherit; transition: all 0.12s; display: flex; align-items: center; gap: 4px; }
+.add-reaction-btn:hover { background: #fffcf5; border-color: var(--gold); }
+.add-reaction-btn.active-voted { color: var(--gold); border-color: var(--gold); background: #fff9e6; }
+
+.reactions-box { position: absolute; bottom: 44px; right: 0; background: var(--white); border: 1px solid var(--gold); border-radius: 24px; box-shadow: 0 6px 25px rgba(0,0,0,0.08); display: flex; gap: 14px; padding: 10px 16px; opacity: 0; visibility: hidden; transform: translateY(10px); transition: all 0.15s ease; z-index: 100; }
+.fb-reaction-wrapper:hover .reactions-box,
+.fb-reaction-wrapper.long-pressed .reactions-box { opacity: 1; visibility: visible; transform: translateY(0); }
+
+.menu-reaction-item { display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s ease; min-width: 38px; }
+.menu-reaction-item:hover { transform: scale(1.2); }
+.menu-reaction-item .emoji { font-size: 1.6rem; }
+.menu-reaction-item .label { font-size: 0.68rem; color: #8d6e63; font-weight: bold; margin-top: 4px; }
+
+.feed-empty { padding: 40px; background: #fafafa; border-radius: 12px; border: 1px solid #eee; color: #777; }
 
 .hidden { display: none !important; }
 
-/* التحكم بالتجاوب التام عند تصفح الموقع من أجهزة الموبايل والتابلت */
-@media (max-width: 1024px) {
-    .quiz-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } /* 3 أعمدة للشاشات المتوسطة */
-}
-@media (max-width: 768px) {
-    .quiz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } /* عمودين للشاشات الصغيرة */
-}
-@media (max-width: 480px) {
-    .quiz-grid { grid-template-columns: 1fr; } /* عمود واحد للموبايل لسهولة القراءة */
-}
+@media (max-width: 1024px) { .quiz-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 768px)  { .quiz-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px)  { .quiz-grid { grid-template-columns: 1fr; } }
 {% endblock %}
 
 {% block content %}
@@ -90,7 +127,7 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
     <div class="welcome-card">
         <h1> فتشوا الكتب - منصة المسابقات الكتابية ✝</h1>
         <p class="subtitle">اشترك في المسابقات اليومية واختبر معلوماتك الكتابية واصعد في لوحة الصدارة!</p>
-        
+
         <div id="logged-out-ui">
             <button onclick="loginWithGoogle()" class="google-btn">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
@@ -102,55 +139,124 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
                 <span>تسجيل الدخول باستخدام Google</span>
             </button>
         </div>
-        
+
         <div id="loggedIn-ui" class="user-panel hidden">
             <div>مرحباً بك، <span id="user-display-name" class="user-name"></span> 👋</div>
             <button onclick="logout()" class="btn btn-logout">تسجيل الخروج</button>
         </div>
     </div>
 
-    <div class="filter-tabs">
-        <a href="?category=bible" class="filter-tab {% if category_filter == 'bible' %}active{% endif %}">
-            📖 كتاب مقدس <span class="count">{{ counts.bible }}</span>
-        </a>
-        <!-- <a href="?category=spiritual" class="filter-tab {% if category_filter == 'spiritual' %}active{% endif %}">
-            📚 كتب روحية <span class="count">{{ counts.spiritual }}</span>
-        </a> -->
-        <a href="?category=iqraa" class="filter-tab {% if category_filter == 'iqraa' %}active{% endif %}">
-            📁 اقرأ واعرف واكسب <span class="count">{{ counts.iqraa }}</span>
-        </a>
+    <!-- ── تبويبات رئيسية: المسابقات / خلاصة النشاط ─────────────────────── -->
+    <div class="main-nav-tabs">
+        <button type="button" onclick="switchMainTab('quizzes')" id="main-tab-quizzes" class="main-tab active">📋 المسابقات</button>
+        <button type="button" onclick="switchMainTab('activity')" id="main-tab-activity" class="main-tab">✨ أحدث نشاط</button>
     </div>
 
-    <div class="quiz-grid">
-        {% for material in materials %}
-            <div class="quiz-card">
-                <div>
-                    {% if material.category == 'bible' %}
-                        <span class="quiz-category-tag tag-bible">📖 كتاب مقدس</span>
-                    {% elif material.category == 'spiritual' %}
-                        <span class="quiz-category-tag tag-spiritual">📚 كتاب روحي</span>
-                    {% else %}
-                        <span class="quiz-category-tag tag-iqraa">📁 اقرأ واعرف واكسب</span>
-                    {% endif %}
+    <!-- ============================== -->
+    <!-- تبويب المسابقات -->
+    <!-- ============================== -->
+    <div id="section-quizzes">
+        <div class="filter-tabs">
+            <a href="?category=bible" class="filter-tab {% if category_filter == 'bible' %}active{% endif %}">
+                📖 كتاب مقدس <span class="count">{{ counts.bible }}</span>
+            </a>
+            <!-- <a href="?category=spiritual" class="filter-tab {% if category_filter == 'spiritual' %}active{% endif %}">
+                📚 كتب روحية <span class="count">{{ counts.spiritual }}</span>
+            </a> -->
+            <a href="?category=iqraa" class="filter-tab {% if category_filter == 'iqraa' %}active{% endif %}">
+                📁 اقرأ واعرف واكسب <span class="count">{{ counts.iqraa }}</span>
+            </a>
+        </div>
 
-                    <h3>{{ material.source_name }}</h3>
-                    
-                    <div class="quiz-meta">
-                        <span>{% if material.category == 'bible' %} اصحاح {% else %} فصل {% endif %}: <b>{{ material.chapter_number }}</b></span>
-                        {% if material.title %}
-                            <span style="font-size: 0.85rem; color: #8d6e63;"> {{ material.title }}</span>
+        <div class="quiz-grid">
+            {% for material in materials %}
+                <div class="quiz-card">
+                    <div>
+                        {% if material.category == 'bible' %}
+                            <span class="quiz-category-tag tag-bible">📖 كتاب مقدس</span>
+                        {% elif material.category == 'spiritual' %}
+                            <span class="quiz-category-tag tag-spiritual">📚 كتاب روحي</span>
+                        {% else %}
+                            <span class="quiz-category-tag tag-iqraa">📁 اقرأ واعرف واكسب</span>
                         {% endif %}
+
+                        <h3>{{ material.source_name }}</h3>
+
+                        <div class="quiz-meta">
+                            <span>{% if material.category == 'bible' %} اصحاح {% else %} فصل {% endif %}: <b>{{ material.chapter_number }}</b></span>
+                            {% if material.title %}
+                                <span style="font-size: 0.85rem; color: #8d6e63;"> {{ material.title }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="quiz-actions">
+                        <a href="{% url 'quiz_view' quiz_slug=material.slug %}" class="btn">دخول 📝</a>
+                    </div>
+                </div>
+            {% empty %}
+                <div style="grid-column: 1/-1;" class="feed-empty">
+                    <p style="margin: 0; font-size: 1.1rem;">لا توجد مسابقات منشورة حالياً في هذا القسم. تابعنا قريباً! 👋</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ============================== -->
+    <!-- تبويب خلاصة النشاط -->
+    <!-- ============================== -->
+    <div id="section-activity" class="feed-container hidden">
+        {% for item in activity_feed %}
+            <div class="feed-item" id="post-{{ item.post_id }}" data-user-reaction="{{ item.user_reaction|default:'' }}" data-post-id="{{ item.post_id }}">
+                <div class="feed-header">
+                    <div class="feed-initial-avatar" style="background-color: {{ item.avatar_color }};">{{ item.user_initial }}</div>
+                    <div class="feed-user-meta">
+                        <h4>{{ item.user_name }}</h4>
+                        <span class="feed-time">{{ item.earned_at|timesince }} مضت</span>
                     </div>
                 </div>
 
-                <div class="quiz-actions">
-                    <a href="{% url 'quiz_view' quiz_slug=material.slug %}" class="btn" style="background-color: var(--gold); color: #fff;">📝 دخول</a>
-                   
+                <div class="feed-content-display">
+                    <div class="badge-graphic">
+                        {% if item.badge_icon %}
+                            <img src="{{ item.badge_icon }}" alt="{{ item.badge_name }}">
+                        {% else %}
+                            🏆
+                        {% endif %}
+                    </div>
+                    <div class="badge-info-text">
+                        <h3 class="badge-title">{{ item.badge_name }}</h3>
+                        <p class="badge-subtitle">{{ item.badge_description }}</p>
+                    </div>
+                </div>
+
+                <div class="feed-actions">
+                    <div class="fb-reaction-wrapper" id="wrap-{{ item.post_id }}">
+                        <button type="button" class="add-reaction-btn {% if item.user_reaction %}active-voted{% endif %}" onclick="handleQuickClick({{ item.post_id }})">
+                            <span class="btn-icon">{{ item.user_reaction|default:'✨' }}</span>
+                            <span class="btn-text">تفاعل</span>
+                        </button>
+                        <div class="reactions-box">
+                            {% for opt in reaction_options %}
+                                <div class="menu-reaction-item" onclick="handleReaction('{{ opt.emoji }}', '{{ opt.label }}', {{ item.post_id }})">
+                                    <span class="emoji">{{ opt.emoji }}</span><span class="label">{{ opt.label }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="spiritual-stats-container" id="stats-{{ item.post_id }}">
+                        {% for r in item.reactions %}
+                            <div class="reaction-chip {% if r.emoji == item.user_reaction %}voted{% endif %}" data-emoji="{{ r.emoji }}" onclick="handleReaction('{{ r.emoji }}', '{{ r.label }}', {{ item.post_id }})">
+                                <span>{{ r.emoji }}</span> <span class="count">{{ r.count }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         {% empty %}
-            <div style="grid-column: 1/-1; padding: 40px; background: #fafafa; border-radius: 12px; border: 1px solid #eee;">
-                <p style="color: #777; font-size: 1.1rem; margin: 0;">لا توجد مسابقات منشورة حالياً في هذا القسم. تابعنا قريباً! 👋</p>
+            <div class="feed-empty">
+                <p style="margin: 0; font-size: 1.1rem;">لا يوجد نشاط بعد. أول من يكسب وسام هيظهر هنا! 🏅</p>
             </div>
         {% endfor %}
     </div>
@@ -160,6 +266,7 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
 {% block extra_js %}
 <script>
     const _supabase = supabase.createClient("{{ SUPABASE_URL }}", "{{ SUPABASE_ANON_KEY }}");
+    const REACT_URL_TEMPLATE = "{% url 'toggle_activity_reaction' user_badge_id=0 %}"; // نستبدل 0 بالـ post_id الحقيقي وقت الإرسال
 
     async function checkUser() {
         const { data: { session } } = await _supabase.auth.getSession();
@@ -185,5 +292,106 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
     }
 
     document.addEventListener('DOMContentLoaded', checkUser);
+
+    // ── التبديل بين تبويب المسابقات وتبويب خلاصة النشاط ────────────────────
+    function switchMainTab(target) {
+        const quizzes = document.getElementById('section-quizzes');
+        const activity = document.getElementById('section-activity');
+        const tabQ = document.getElementById('main-tab-quizzes');
+        const tabA = document.getElementById('main-tab-activity');
+
+        if (target === 'quizzes') {
+            quizzes.classList.remove('hidden');
+            activity.classList.add('hidden');
+            tabQ.classList.add('active');
+            tabA.classList.remove('active');
+        } else {
+            quizzes.classList.add('hidden');
+            activity.classList.remove('hidden');
+            tabQ.classList.remove('active');
+            tabA.classList.add('active');
+        }
+    }
+
+    // ── منطق التفاعلات: كل التغييرات مرسلة فعلياً للسيرفر عبر AJAX ─────────
+    function handleQuickClick(postId) {
+        const post = document.getElementById('post-' + postId);
+        const currentReaction = post.getAttribute('data-user-reaction');
+        if (currentReaction) {
+            handleReaction(currentReaction, '', postId); // إرسال نفس الإيموجي للسيرفر يعني "إلغاء"
+        } else {
+            handleReaction('🎉', 'مبارك', postId);
+        }
+    }
+
+    async function handleReaction(emoji, label, postId) {
+        const url = REACT_URL_TEMPLATE.replace(/\/0\/?$/, '/' + postId + '/');
+        let result;
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ emoji, label })
+            });
+            if (res.status === 401) {
+                alert('يجب تسجيل الدخول للتفاعل مع النشاط.');
+                return;
+            }
+            result = await res.json();
+            if (result.status !== 'success') {
+                console.error(result.message);
+                return;
+            }
+        } catch (err) {
+            console.error('reaction request failed', err);
+            return;
+        }
+        renderPostReactions(postId, result.reactions, result.user_reaction);
+    }
+
+    // ── يعيد رسم الشرائح والزر بناءً على الرد الحقيقي القادم من السيرفر ───
+    function renderPostReactions(postId, reactions, userReaction) {
+        const post = document.getElementById('post-' + postId);
+        const statsContainer = document.getElementById('stats-' + postId);
+        const btn = post.querySelector('.add-reaction-btn');
+
+        statsContainer.innerHTML = '';
+        reactions.forEach(r => {
+            const chip = document.createElement('div');
+            chip.className = 'reaction-chip' + (r.emoji === userReaction ? ' voted' : '');
+            chip.setAttribute('data-emoji', r.emoji);
+            chip.onclick = function () { handleReaction(r.emoji, r.label, postId); };
+            chip.innerHTML = `<span>${r.emoji}</span> <span class="count">${r.count}</span>`;
+            statsContainer.appendChild(chip);
+        });
+
+        if (userReaction) {
+            btn.classList.add('active-voted');
+            btn.querySelector('.btn-icon').innerText = userReaction;
+            btn.querySelector('.btn-text').innerText = 'تفاعلت';
+        } else {
+            btn.classList.remove('active-voted');
+            btn.querySelector('.btn-icon').innerText = '✨';
+            btn.querySelector('.btn-text').innerText = 'تفاعل';
+        }
+
+        post.setAttribute('data-user-reaction', userReaction || '');
+        const wrap = document.getElementById('wrap-' + postId);
+        if (wrap) wrap.classList.remove('long-pressed');
+    }
+
+    // دعم اللمس الطويل لإظهار قائمة التفاعلات على الموبايل
+    document.querySelectorAll('.fb-reaction-wrapper').forEach(wrapper => {
+        let pressTimer;
+        wrapper.addEventListener('touchstart', function () {
+            pressTimer = window.setTimeout(function () {
+                wrapper.classList.add('long-pressed');
+            }, 400);
+        });
+        wrapper.addEventListener('touchend', function () {
+            clearTimeout(pressTimer);
+        });
+    });
 </script>
 {% endblock %}

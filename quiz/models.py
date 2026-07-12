@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.utils import timezone
 
 
@@ -349,3 +351,49 @@ class UserBadge(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.badge.name}" 
+
+class ActivityComment(models.Model):
+    """
+    نظام تعليقات مرن ونامي: يسمح بالتعليق على النتيجة (Score) أو على الأوسمة (UserBadge)
+    دون تعديل جداولهم الأصلية.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activity_comments", verbose_name="المعلق")
+    text = models.TextField(verbose_name="نص التعليق")
+    created_at = models.DateTimeField(default=timezone.now, verbose_name="تاريخ التعليق")
+    
+    # إعدادات العلاقة المرنة (Generic Foreign Key)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    class Meta:
+        verbose_name = "تعليق النشاط"
+        verbose_name_plural = "تعليقات الأنشطة"
+        ordering = ['created_at']  # ترتيب التعليقات من الأقدم للأحدث
+
+    def __str__(self):
+        return f"{self.user.username}: {self.text[:30]}"
+
+
+class ActivityReaction(models.Model):
+    """
+    نظام تفاعلات (إيموجي) مرن: يدعم محاكاة فيسبوك بوضع تفاعل واحد فقط لكل مستخدم على البوست.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activity_reactions", verbose_name="المتفاعل")
+    emoji = models.CharField(max_length=10, verbose_name="الإيموجي المستعمل")
+    label = models.CharField(max_length=20, verbose_name="اسم التفاعل (مبارك، آمين...)")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    # إعدادات العلاقة المرنة (Generic Foreign Key)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    class Meta:
+        verbose_name = "تفاعل النشاط"
+        verbose_name_plural = "تفاعلات الأنشطة"
+        # منع المستخدم من وضع أكثر من تفاعل على نفس البوست (النتيجة أو الوسام)
+        unique_together = ('user', 'content_type', 'object_id')
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.emoji}"

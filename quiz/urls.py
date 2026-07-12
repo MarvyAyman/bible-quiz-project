@@ -9,6 +9,9 @@ urlpatterns = [
     re_path(r'^quiz/(?P<quiz_slug>[^/]+)/submit/$',     views.submit_score,     name='submit_score'),
     # re_path(r'^quiz/(?P<quiz_slug>[^/]+)/leaderboard/$',views.leaderboard_view, name='leaderboard_view'),
 
+    # ── Activity feed (أحدث نشاط) ───────────────────────────────────────────
+    path('activity/react/<int:user_badge_id>/', views.toggle_activity_reaction, name='toggle_activity_reaction'),
+
     # ── Public category lists ─────────────────────────────────────────────────
     path('bible/',    views.materials_list_client, {'category': 'bible'},    name='bible_list'),
     path('spiritual/',views.materials_list_client, {'category': 'spiritual'},name='spiritual_list'),

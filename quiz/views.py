@@ -4,15 +4,17 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.models import User
 from django.contrib.auth import login
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Avg, Count
 from django.utils.text import slugify
 from django.conf import settings
-from .models import Material, MaterialLink, Question, QuestionChoice, Score, QuestionResponse
+from .models import Material, MaterialLink, Question, QuestionChoice, Score, QuestionResponse, ActivityComment, ActivityReaction
 import json
 import re
 import os
 import requests
 import jwt
+from collections import defaultdict
 from urllib.parse import unquote
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models.functions import TruncDate
@@ -28,6 +30,68 @@ CATEGORY_LABELS = {
     'spiritual': '📚 كتاب روحي',
     'iqraa': '📁 اقرأ واعرف واكسب',
 }
+
+# خيارات التفاعل المتاحة على بوستات خلاصة النشاط (الدروع المكتسبة)
+REACTION_OPTIONS = [
+    {'emoji': '🎉', 'label': 'مبارك'},
+    {'emoji': '🙏', 'label': 'آمين'},
+    {'emoji': '📖', 'label': 'فخر'},
+    {'emoji': '✨', 'label': 'نعمة'},
+]
+
+# لوحة ألوان أفاتار ثابتة تُختار بناءً على user_id لتظل نفس اللون لكل عضو
+AVATAR_PALETTE = ['#58cc02', '#ff9800', '#1e88e5', '#8e24aa', '#e53935', '#00897b', '#6d4c41', '#3949ab']
+
+
+def _avatar_color(user_id):
+    return AVATAR_PALETTE[user_id % len(AVATAR_PALETTE)]
+
+
+def _build_activity_feed(request_user, limit=30):
+    """
+    يبني قائمة أحدث الدروع المكتسبة (كخلاصة نشاط) مع تفاعلات كل بوست
+    مجمّعة بكويري واحد بدلاً من استعلام منفصل لكل بوست (تفادي N+1).
+    """
+    user_badges = list(
+        UserBadge.objects.select_related('user', 'badge').order_by('-earned_at')[:limit]
+    )
+    if not user_badges:
+        return []
+
+    content_type = ContentType.objects.get_for_model(UserBadge)
+    object_ids = [ub.id for ub in user_badges]
+
+    reactions_qs = ActivityReaction.objects.filter(
+        content_type=content_type, object_id__in=object_ids
+    )
+
+    grouped = defaultdict(lambda: defaultdict(int))   # {post_id: {(emoji,label): count}}
+    user_reaction_map = {}                             # {post_id: emoji}
+    for r in reactions_qs:
+        grouped[r.object_id][(r.emoji, r.label)] += 1
+        if request_user.is_authenticated and r.user_id == request_user.id:
+            user_reaction_map[r.object_id] = r.emoji
+
+    feed = []
+    for ub in user_badges:
+        reactions = [
+            {'emoji': emoji, 'label': label, 'count': count}
+            for (emoji, label), count in grouped.get(ub.id, {}).items()
+        ]
+        display_name = ub.user.get_full_name() or ub.user.username
+        feed.append({
+            'post_id': ub.id,
+            'user_name': display_name,
+            'user_initial': display_name[0] if display_name else '؟',
+            'avatar_color': _avatar_color(ub.user_id),
+            'earned_at': ub.earned_at,
+            'badge_name': ub.badge.name,
+            'badge_description': ub.badge.description,
+            'badge_icon': ub.badge.icon_image_url,
+            'reactions': reactions,
+            'user_reaction': user_reaction_map.get(ub.id),
+        })
+    return feed
 
 
 def decode_url_slug(url_string):
@@ -63,6 +127,8 @@ def index_view(request):
         'materials': materials,
         'category_filter': category_filter,
         'counts': counts,
+        'activity_feed': _build_activity_feed(request.user),
+        'reaction_options': REACTION_OPTIONS,
         'SUPABASE_URL': settings.SUPABASE_URL,
         'SUPABASE_ANON_KEY': settings.SUPABASE_ANON_KEY,
     })
@@ -414,6 +480,65 @@ def submit_score(request, quiz_slug):
         'redirect_url': redirect_destination,   # 👈 التوجيه النهائي بعد انتهاء المستخدم من استعراض الأوسمة
         'new_badges': new_earned_badges         # 👈 مصفوفة الدروع المكتسبة حديثاً لعرضها بالتتابع في شاشة النتيجة
     })
+
+
+@csrf_exempt
+@require_POST
+def toggle_activity_reaction(request, user_badge_id):
+    """
+    إضافة / تبديل / إزالة تفاعل المستخدم الحالي على بوست وسام مكتسب (UserBadge)
+    في خلاصة النشاط، بنفس منطق فيسبوك: تفاعل واحد فقط لكل مستخدم لكل بوست
+    (unique_together على ActivityReaction يفرض هذا فعلياً على مستوى القاعدة).
+    """
+    user = request.user
+    if not user.is_authenticated:
+        return JsonResponse({'status': 'error', 'message': 'يجب تسجيل الدخول للتفاعل.'}, status=401)
+
+    user_badge = get_object_or_404(UserBadge, id=user_badge_id)
+    content_type = ContentType.objects.get_for_model(UserBadge)
+
+    try:
+        data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'بيانات غير صالحة.'}, status=400)
+
+    emoji = (data.get('emoji') or '').strip()
+    label = (data.get('label') or '').strip()
+    valid_emojis = {opt['emoji'] for opt in REACTION_OPTIONS}
+    if emoji not in valid_emojis:
+        return JsonResponse({'status': 'error', 'message': 'تفاعل غير مدعوم.'}, status=400)
+
+    existing = ActivityReaction.objects.filter(
+        user=user, content_type=content_type, object_id=user_badge.id
+    ).first()
+
+    if existing and existing.emoji == emoji:
+        # نفس التفاعل تم الضغط عليه مجدداً → إزالته (toggle off)
+        existing.delete()
+        user_reaction = None
+    elif existing:
+        # تفاعل مختلف → استبدال القديم بالجديد لنفس المستخدم على نفس البوست
+        existing.emoji = emoji
+        existing.label = label
+        existing.save(update_fields=['emoji', 'label'])
+        user_reaction = emoji
+    else:
+        ActivityReaction.objects.create(
+            user=user, content_type=content_type, object_id=user_badge.id,
+            emoji=emoji, label=label
+        )
+        user_reaction = emoji
+
+    # إعادة حساب التفاعلات المجمّعة لهذا البوست فقط للرد الفوري بأحدث بيانات دقيقة
+    reactions_qs = ActivityReaction.objects.filter(content_type=content_type, object_id=user_badge.id)
+    counts = defaultdict(int)
+    labels = {}
+    for r in reactions_qs:
+        counts[r.emoji] += 1
+        labels[r.emoji] = r.label
+    reactions = [{'emoji': e, 'label': labels[e], 'count': c} for e, c in counts.items()]
+
+    return JsonResponse({'status': 'success', 'reactions': reactions, 'user_reaction': user_reaction})
     
 # def leaderboard_view(request, quiz_slug):
 #     quiz_slug = unquote(quiz_slug)

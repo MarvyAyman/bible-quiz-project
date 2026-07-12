@@ -94,6 +94,9 @@ WSGI_APPLICATION = 'bible_quiz_project.wsgi.application'
 # Database configuration
 # DATABASE_URL = env('SUPABASE_URL', default=os.environ.get('SUPABASE_URL', None))
 
+
+#------------------------------------------------------------------------------------
+#supbase database url
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 if DATABASE_URL:
@@ -111,6 +114,7 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
