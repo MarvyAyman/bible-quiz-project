@@ -1,0 +1,14 @@
+name = "ia-upload-worker"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+
+# دومين تطبيقك بالظبط (من غير / في الآخر). حطي رابط اللوكال وقت التجربة،
+# وبعد كده حطي رابط Vercel النهائي وقت النشر الحقيقي.
+# مينفعش تحطي أكتر من قيمة هنا - لو محتاجة تسمحي لأكتر من دومين (لوكال + Vercel
+# مع بعض)، عدّلي كود الـ Worker يقارن على قايمة origins بدل قيمة واحدة.
+[vars]
+ALLOWED_ORIGIN = "http://127.0.0.1:8000"
+
+# المفاتيح دي مش بتتحط هنا خالص - بتتضاف بالأمر ده من الترمينال (سرية ومشفرة):
+#   wrangler secret put IA_ACCESS_KEY
+#   wrangler secret put IA_SECRET_KEY

@@ -1,0 +1,146 @@
+{% extends 'quiz/panel/base_panel.html' %}
+{% block title %}{% if category %}تعديل تصنيف{% else %}إضافة تصنيف{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if category %}✏️ تعديل تصنيف{% else %}➕ إضافة تصنيف{% endif %}</h1>
+</div>
+
+{% if error %}
+<div class="alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card form-card">
+    <form method="post" id="category-form">
+        {% csrf_token %}
+
+        {# ── Basic info ─────────────────────────────────────────────── #}
+        <div class="form-grid">
+            <div class="form-field">
+                <label for="key">المعرف (key)</label>
+                <input type="text" id="key" name="key" required
+                       value="{{ form_data.key|default:'' }}"
+                       placeholder="مثال: bible"
+                       style="direction:ltr;">
+                <small style="color:#8d6e63;">
+                    حروف إنجليزية/أرقام/شرطة فقط — يُستخدم في الروابط ولا يجب تغييره لاحقاً.
+                </small>
+            </div>
+
+            <div class="form-field">
+                <label for="name">اسم التصنيف</label>
+                <input type="text" id="name" name="name" required
+                       value="{{ form_data.name|default:'' }}"
+                       placeholder="مثال: كتاب مقدس">
+            </div>
+
+            <div class="form-field">
+                <label for="label">الاسم المعروض (اختياري)</label>
+                <input type="text" id="label" name="label"
+                       value="{{ form_data.label|default:'' }}"
+                       placeholder="لو تُرك فارغاً يُستخدم الاسم أعلاه">
+            </div>
+
+            <div class="form-field">
+                <label for="icon">الأيقونة (إيموجي)</label>
+                <input type="text" id="icon" name="icon" maxlength="4"
+                       value="{{ form_data.icon|default:'📁' }}">
+            </div>
+        </div>
+
+        {# ── Visibility toggle ──────────────────────────────────────── #}
+        <div class="form-field">
+            <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" name="is_active" id="is_active"
+                       {% if form_data.is_active %}checked{% endif %}>
+                التصنيف نشط ويظهر في القائمة العلوية
+            </label>
+        </div>
+
+        <hr class="divider">
+
+        {# ── Links settings ─────────────────────────────────────────── #}
+        <h3 style="color:var(--dark-gold); margin:0 0 6px;">🔗 إعدادات الروابط</h3>
+        <p style="color:#8d6e63; font-size:0.9rem; margin-top:0;">
+            تحكّم في إمكانية إضافة روابط (PDF / صوت / صورة / فيديو...) لمواد هذا التصنيف.
+        </p>
+
+        <div class="form-field">
+            <label style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" name="has_links" id="has_links"
+                       {% if form_data.has_links %}checked{% endif %}>
+                تمكين إضافة الروابط لهذا التصنيف
+            </label>
+            <small style="color:#8d6e63;">
+                عند الإلغاء: المحتوى سيكون أسئلة فقط، ولن يظهر محرّر الروابط في نموذج إضافة المادة.
+            </small>
+        </div>
+
+        {# Link mode radios — only shown when has_links is checked #}
+        <div id="link-mode-block"
+             style="{% if not form_data.has_links %}display:none;{% endif %}
+                background:#fffcf5; border-right:4px solid var(--gold);
+                padding:16px 18px; border-radius:8px; margin-bottom:20px;">
+            <label style="font-weight:bold; display:block; margin-bottom:10px;">
+                طريقة عرض الروابط على صفحة الاختبار:
+            </label>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+
+                <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                    <input type="radio" name="link_mode" value="multiple"
+                           {% if form_data.link_mode != 'single' %}checked{% endif %}
+                           style="margin-top:4px;">
+                    <span>
+                        <strong>🔢 روابط متعددة</strong>
+                        <small style="display:block; color:#8d6e63;">
+                            يمكن إضافة عدد غير محدود من الروابط (مثال: ملخص PDF + الفصل كامل + بودكاست).
+                        </small>
+                    </span>
+                </label>
+
+                <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                    <input type="radio" name="link_mode" value="single"
+                           {% if form_data.link_mode == 'single' %}checked{% endif %}
+                           style="margin-top:4px;">
+                    <span>
+                        <strong>🔗 رابط واحد فقط</strong>
+                        <small style="display:block; color:#8d6e63;">
+                            يسمح برابط واحد فقط لكل مادة (مثال: رابط الملف الكامل فقط).
+                        </small>
+                    </span>
+                </label>
+
+            </div>
+        </div>
+
+        {# ── Actions ────────────────────────────────────────────────── #}
+        <div class="builder-actions">
+            <div>
+                <a href="{% url 'manage_categories' %}" class="btn btn-outline">⬅️ رجوع</a>
+            </div>
+            <div>
+                <button type="submit" class="btn">💾 حفظ</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    const hasLinksCheckbox = document.getElementById('has_links');
+    const linkModeBlock = document.getElementById('link-mode-block');
+
+    function toggleLinkMode() {
+        if (hasLinksCheckbox.checked) {
+            linkModeBlock.style.display = 'block';
+        } else {
+            linkModeBlock.style.display = 'none';
+        }
+    }
+
+    hasLinksCheckbox.addEventListener('change', toggleLinkMode);
+    toggleLinkMode(); // apply on initial load
+})();
+</script>
+{% endblock %}

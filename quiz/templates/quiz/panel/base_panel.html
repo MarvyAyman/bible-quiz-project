@@ -20,13 +20,13 @@
             font-family: 'Tajawal', sans-serif; background-color: var(--beige);
             color: var(--text-color); margin: 0; display: flex; min-height: 100vh;
         }
-        
+
         /* Sidebar default styling (Desktop) */
         .sidebar {
             width: var(--sidebar-width); background: var(--white);
             border-left: 1px solid var(--light-border); padding: 30px 20px;
             position: fixed; top: 0; right: 0; height: 100vh; box-sizing: border-box;
-            z-index: 1000;
+            z-index: 1000; overflow-y: auto;
             transition: transform 0.3s ease, opacity 0.3s ease;
         }
         .sidebar h2 { color: var(--dark-gold); font-size: 1.3rem; margin-bottom: 30px; text-align: center; }
@@ -36,7 +36,12 @@
         }
         .sidebar a:hover, .sidebar a.active { background: var(--beige); color: var(--dark-gold); }
         .sidebar .back-link { margin-top: 40px; font-size: 0.85rem; color: #999; }
-        
+        .sidebar .section-label {
+            font-size: 0.75rem; color: #a89880; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin: 20px 15px 8px; display: block;
+        }
+
         /* Main Layout Content Window */
         .main { margin-right: var(--sidebar-width); padding: 30px 40px; flex: 1; width: calc(100% - var(--sidebar-width)); }
 
@@ -59,7 +64,7 @@
             background: transparent; border: none; font-size: 1.6rem; color: var(--dark-gold); cursor: pointer; padding: 5px;
             display: flex; align-items: center; justify-content: center;
         }
-        
+
         /* Mobile Close Container inside Sidebar */
         .sidebar-close-container {
             display: none;
@@ -158,8 +163,8 @@
             body { flex-direction: column; }
             .mobile-header { display: flex; }
             .sidebar-close-container { display: flex; }
-            
-            .sidebar { 
+
+            .sidebar {
                 transform: translateX(100%);
                 opacity: 0;
                 visibility: hidden;
@@ -175,7 +180,7 @@
                 visibility: visible;
             }
             .main { margin-right: 0; width: 100%; padding: 20px; }
-            
+
             /* Responsive formatting items */
             .builder-actions { flex-direction: column; align-items: stretch; gap: 10px; }
             .builder-actions div { display: flex; flex-direction: column; gap: 10px; }
@@ -198,18 +203,27 @@
         <div class="sidebar-close-container">
              <button type="button" class="menu-toggle" id="menu-close-btn" aria-label="أغلق القائمة">✕</button>
         </div>
-        
+
         <h2>📖 لوحة التحكم</h2>
+
+        {# ── Core admin links ─────────────────────────────────────────── #}
+        <a href="{% url 'manage_subscribers' %}" class="{% if active == 'subscribers' %}active{% endif %}">👥 المشتركون</a>
         <a href="{% url 'panel_dashboard' %}" class="{% if active == 'dashboard' %}active{% endif %}">📊 الإحصائيات العامة</a>
+        <a href="{% url 'manage_categories' %}" class="{% if active == 'manage_categories' %}active{% endif %}">🗂️ إدارة الأقسام</a>
         <a href="{% url 'manage_materials' %}" class="{% if active == 'manage_materials' %}active{% endif %}">⚙️ إدارة المحتوى</a>
         <a href="{% url 'manage_badges' %}" class="{% if active == 'manage_badges' %}active{% endif %}">🏅 إدارة الدروع</a>
-    
-        <div class="divider" style="margin: 10px 0; border-top: 1px solid var(--light-border);"></div>
-        
-        <a href="{% url 'create_material_step1' %}?category=bible" class="{% if active == 'create_material_step1' and request.GET.category == 'bible' %}active{% endif %}">📖 كتاب مقدس</a>
-        <!-- <a href="{% url 'create_material_step1' %}?category=spiritual" class="{% if active == 'create_material_step1' and request.GET.category == 'spiritual' %}active{% endif %}">📚 كتاب روحي</a> -->
-        <a href="{% url 'create_material_step1' %}?category=iqraa" class="{% if active == 'create_material_step1' and request.GET.category == 'iqraa' %}active{% endif %}">📁 اقرأ واعرف واكسب</a>
-        
+
+        {# ── Dynamic category shortcuts — "add new material" per category #}
+        {% if all_sidebar_categories %}
+            <span class="section-label">➕ الأقسام النشطة</span>
+            {% for cat in all_sidebar_categories %}
+                <a href="{% url 'create_material_step1' %}?category={{ cat.key }}"
+                   class="{% if active == 'create_material_step1' and request.GET.category == cat.key %}active{% endif %}">
+                    {{ cat.icon }} {{ cat.display_name }}
+                </a>
+            {% endfor %}
+        {% endif %}
+
         <div class="back-link">
             <a href="{% url 'index' %}">⬅️ عرض الموقع الرئيسي</a>
         </div>

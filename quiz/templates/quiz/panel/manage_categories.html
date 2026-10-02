@@ -1,0 +1,108 @@
+{% extends 'quiz/panel/base_panel.html' %}
+{% block title %}إدارة التصنيفات{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
+    <div>
+        <h1>🗂️ إدارة التصنيفات</h1>
+        <p>اسحب الصف لتغيير الترتيب، أو أضف/عدّل/عطّل أي تصنيف.</p>
+    </div>
+    <a href="{% url 'category_create' %}" class="btn">➕ إضافة تصنيف</a>
+</div>
+
+<div class="card table-card">
+    <table>
+        <thead>
+            <tr>
+                <th style="width:40px;"></th>
+                <th>التصنيف</th>
+                <th>المعرف (key)</th>
+                <th>عدد المواد</th>
+                <th>الروابط</th>
+                <th>الحالة</th>
+                <th>إجراءات</th>
+            </tr>
+        </thead>
+        <tbody id="categories-body">
+            {% for c in categories %}
+            <tr draggable="true" data-id="{{ c.id }}" style="cursor:grab;">
+                <td>☰</td>
+                <td>{{ c.icon }} {{ c.display_name }}</td>
+                <td style="direction:ltr; text-align:right;">{{ c.key }}</td>
+                <td>{% for cid, n in counts.items %}{% if cid == c.id %}{{ n }}{% endif %}{% endfor %}</td>
+                <td>
+                    {% if c.has_links %}
+                        {% if c.link_mode == 'single' %}رابط واحد{% else %}متعددة{% endif %}
+                    {% else %}
+                        <span class="badge badge-muted">بدون</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if c.is_active %}
+                        <span class="badge badge-success">نشط</span>
+                    {% else %}
+                        <span class="badge badge-danger">غير نشط</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <a href="{% url 'category_edit' c.id %}" class="btn btn-outline" style="padding:6px 14px; font-size:0.85rem;">✏️ تعديل</a>
+
+                        <form method="post" action="{% url 'category_toggle' c.id %}" style="margin:0;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline" style="padding:6px 14px; font-size:0.85rem;">
+                                {% if c.is_active %}تعطيل{% else %}تفعيل{% endif %}
+                            </button>
+                        </form>
+
+                        <form method="post" action="{% url 'category_delete' c.id %}" style="margin:0;"
+                              onsubmit="return confirm('حذف هذا التصنيف؟ (لن يُحذف إن كان به مواد)');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger" style="padding:6px 14px; font-size:0.85rem;">🗑️ حذف</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="empty-row">لا توجد تصنيفات بعد.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+(function () {
+    const body = document.getElementById('categories-body');
+    let dragged = null;
+
+    body.addEventListener('dragstart', e => {
+        dragged = e.target.closest('tr');
+        if (dragged) dragged.style.opacity = '0.4';
+    });
+
+    body.addEventListener('dragend', () => {
+        if (dragged) dragged.style.opacity = '';
+        dragged = null;
+        saveOrder();
+    });
+
+    body.addEventListener('dragover', e => {
+        e.preventDefault();
+        const target = e.target.closest('tr');
+        if (!dragged || !target || target === dragged) return;
+        const rect = target.getBoundingClientRect();
+        const after = (e.clientY - rect.top) > rect.height / 2;
+        body.insertBefore(dragged, after ? target.nextSibling : target);
+    });
+
+    function saveOrder() {
+        const ids = [...body.querySelectorAll('tr[data-id]')].map(r => r.dataset.id);
+        fetch("{% url 'category_reorder_api' %}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({order: ids})
+        }).catch(() => alert('تعذّر حفظ الترتيب'));
+    }
+})();
+</script>
+{% endblock %}

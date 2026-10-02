@@ -189,7 +189,7 @@
             margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;
         }
         .score-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .score-number { font-size: 2.6rem; font-weight: 700; color: var(--dark-gold); line-height: 1; }
+        .score-number { font-size: 2.6rem; font-weight: 700; line-height: 1; transition: color 0.4s ease; }
         .score-total { font-size: 0.85rem; color: #8d6e63; margin-top: 4px; }
 
         @keyframes scorePop {
@@ -277,16 +277,16 @@
 
     <div id="quiz-wrapper">
         <div class="header">
-            <h1>{{ material.source_name }} - الأصحاح {{ material.chapter_number }}</h1>
+            <h1>{{ material.source_name }} - {% if material.category.key == 'bible' %}الأصحاح{% else %}الفصل{% endif %} {{ material.chapter_number }}</h1>
             {% if material.title %}<p style="margin: 5px 0 0 0; color: #6d4c41; font-weight: bold;">{{ material.title }}</p>{% endif %}
         </div>
 
         <div id="intro-ui" class="intro-container">
             <div class="intro-title">
-                {% if material.category == 'bible' or material.category == 'spiritual' %}
-                    📖 مواد المراجعة والتحضير قبل بدء المسابقة
-                {% else %}
+                {% if material.category.key == 'iqraa' %}
                     🎯 اقرأ، اعرف، واكسب قبل المسابقة
+                {% else %}
+                    📖 مواد المراجعة والتحضير قبل بدء المسابقة
                 {% endif %}
             </div>
             
@@ -333,7 +333,7 @@
                     </div>
                 </div>
                 <h3 class="congrats-title" id="resultTitle">أداء ممتاز ومبهر!</h3>
-                <p class="congrats-text">لقد اجتزت هذه المسابقة بنجاح. استمر في السعي وصقل معرفتك دائماً.</p>
+<p class="congrats-text" id="resultDesc">لقد اجتزت هذه المسابقة بنجاح. استمر في السعي وصقل معرفتك دائماً.</p>
                 <div id="actionArea">
                     <button class="action-btn" style="width: 100%; padding: 14px; border-radius: 12px;" id="scoreActionBtn" onclick="startBadgeSequence()">
                         <span id="btnTriggerText">التالي: استلام الأوسمة</span>
@@ -631,8 +631,13 @@
         } else {
             userToken = session.access_token;
         }
-        initIntroInterface();
         loadQuestion();
+        // بدون روابط/مواد تحضيرية → ندخل الأسئلة مباشرة بدون شاشة التمهيد
+        if (!mediaLinks || mediaLinks.length === 0) {
+            startQuizQuestions();
+        } else {
+            initIntroInterface();
+        }
     }
 
     const questions = JSON.parse(document.getElementById('quiz-questions-data').textContent);
@@ -742,6 +747,43 @@
     }
 
     // ===================================================================
+// نصوص النتيجة الديناميكية حسب النسبة
+// ===================================================================
+function getResultMessage(percentage) {
+    if (percentage >= 90) {
+        return {
+            title: '🏆 أداء استثنائي مبهر!',
+            desc: 'مستوى رائع جداً! استوعبت المادة بعمق، واستحققت أعلى الدرجات بجدارة. استمر على هذا التميز وكن قدوة لغيرك.',
+            color: '#996515', // ذهبي
+        };
+    } else if (percentage >= 75) {
+        return {
+            title: '✨ أداء ممتاز ومبهر!',
+            desc: 'لقد اجتزت المسابقة بنجاح وبمستوى متميز. مجهودك واضح، وكل ما تحتاجه هو مراجعة بسيطة للتفاصيل الباقية.',
+            color: '#996515', // ذهبي
+        };
+    } else if (percentage >= 60) {
+        return {
+            title: '👏 أداء جيد جداً!',
+            desc: 'أحسنت! أنت على الطريق الصحيح. راجع النقاط التي أخطأت فيها وستصل بسهولة للمستوى الأعلى في المرة القادمة.',
+            color: '#2e7d32', // أخضر
+        };
+    } else if (percentage >= 40) {
+        return {
+            title: '💪 بداية جيدة، واصل!',
+            desc: 'أنت تسير بخطى ثابتة. ركّز على المواد التحضيرية وأعد قراءتها قبل المحاولة القادمة.',
+            color: '#e65100', // برتقالي
+        };
+    } else {
+        return {
+            title: '🌱 لا بأس، المحاولة خطوة!',
+            desc: 'كل بداية صعبة، والمهم أنك حاولت. راجع المرجع المرفق بتركيز، وحاول مرة أخرى — النجاح يحتاج فقط لبعض الصبر والمثابرة.',
+            color: '#c62828', // أحمر هادئ
+        };
+    }
+}
+
+    // ===================================================================
     // شاشة النتيجة والأوسمة (Result + Badge Sequence Flow)
     // ===================================================================
     let finalRedirectUrl = '/';
@@ -749,13 +791,40 @@
     let currentBadgeIndex = 0;
 
     function showResultFlow(data) {
+        // finalRedirectUrl = data.redirect_url || '/';
+        // unlockedBadges = data.new_badges || [];
+
+        // document.getElementById('loading-ui').style.display = 'none';
+        // document.getElementById('result-ui').classList.remove('hidden');
+
+        // const btnTriggerText = document.getElementById('btnTriggerText');
+
         finalRedirectUrl = data.redirect_url || '/';
         unlockedBadges = data.new_badges || [];
 
         document.getElementById('loading-ui').style.display = 'none';
         document.getElementById('result-ui').classList.remove('hidden');
 
-        const btnTriggerText = document.getElementById('btnTriggerText');
+        // 🆕 حساب النسبة وتطبيق الرسالة المناسبة
+        const percentage = data.total_questions > 0
+            ? (data.score_value / data.total_questions) * 100
+            : 0;
+
+        const message = getResultMessage(percentage);
+
+        document.getElementById('resultTitle').textContent = message.title;
+        document.getElementById('resultDesc').textContent = message.desc;
+
+        // 🆕 تغيير لون دائرة الدرجة حسب النسبة
+        const scoreCircle = document.getElementById('scoreCircle');
+        scoreCircle.style.color = message.color;
+        // لو عايزة تخلي الرقم نفسه بلون مختلف:
+        document.getElementById('currentScore').style.color = message.color;
+
+        
+    // 🆕 نص الزر لو فيه أوسمة
+    const btnTriggerText = document.getElementById('btnTriggerText');
+        
         if (unlockedBadges.length > 1) {
             btnTriggerText.innerText = `التالي: استلام أوسمتك (${unlockedBadges.length} أوسمة) 🎉`;
         } else if (unlockedBadges.length === 1) {

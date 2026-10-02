@@ -1,0 +1,294 @@
+{% extends "quiz/panel/base_panel.html" %}
+{% block title %}المشتركون{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* ── Filters ── */
+    .filters-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+    .filters-bar input, .filters-bar select {
+        padding: 11px 14px; border: 1px solid var(--light-border); border-radius: 8px;
+        font-family: inherit; font-size: 0.95rem; background: #fff; color: var(--text-color);
+    }
+    .filters-bar input { flex: 1; min-width: 200px; }
+    .filters-bar input:focus, .filters-bar select:focus { outline: none; border-color: var(--gold); }
+    .result-count { color: #8d6e63; font-size: 0.85rem; margin-bottom: 10px; }
+    tr.sub-row { cursor: pointer; transition: 0.15s; }
+    tr.sub-row:hover { background: #fffcf5; }
+    .sub-name { font-weight: 700; }
+    .sub-user { font-size: 0.78rem; color: #a89880; }
+    .loading-note { text-align: center; color: #8d6e63; padding: 20px; }
+    .load-more-wrap { text-align: center; margin-top: 15px; }
+    .attempt-cell small { display: block; color: #a89880; font-size: 0.75rem; }
+    .trend-up { color: var(--success); font-weight: 700; }
+    .trend-down { color: var(--danger); font-weight: 700; }
+    .quiz-title { font-weight: 700; }
+    .quiz-cat { font-size: 0.78rem; color: #a89880; }
+
+    /* ── Sidebar Detail Modal (slides from right) ── */
+    .detail-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+        z-index: 2000; opacity: 0; visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .detail-backdrop.open { opacity: 1; visibility: visible; }
+
+    .detail-panel {
+        position: fixed; top: 0; right: 0; height: 100vh; width: 720px;
+        max-width: 100vw; background: var(--white); z-index: 2001;
+        box-shadow: -8px 0 30px rgba(0,0,0,0.15);
+        transform: translateX(100%); transition: transform 0.3s ease;
+        display: flex; flex-direction: column;
+    }
+    .detail-backdrop.open .detail-panel { transform: translateX(0); }
+
+    .detail-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 20px 25px; border-bottom: 1px solid var(--light-border);
+        background: #fffcf5;
+    }
+    .detail-header h2 { margin: 0; color: var(--dark-gold); font-size: 1.3rem; }
+    .detail-header .close-btn {
+        background: none; border: none; font-size: 1.5rem; cursor: pointer;
+        color: var(--dark-gold); line-height: 1; padding: 4px 10px;
+    }
+    .detail-meta { font-size: 0.85rem; color: #8d6e63; margin-top: 4px; }
+
+    .detail-body { padding: 20px 25px 30px; overflow-y: auto; flex: 1; }
+
+    .mini-stats {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 12px; margin-bottom: 22px;
+    }
+    .mini-stat {
+        background: #fffcf5; border: 1px solid var(--light-border);
+        border-radius: 10px; padding: 12px; text-align: center;
+    }
+    .mini-stat b { display: block; font-size: 1.4rem; color: var(--dark-gold); }
+    .mini-stat span { font-size: 0.8rem; color: #8d6e63; }
+
+    /* Mobile: full-screen panel */
+    @media (max-width: 768px) {
+        .detail-panel { width: 100vw; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👥 المشتركون</h1>
+    <p>متابعة مستوى استيعاب المشتركين ونتائجهم في المسابقات</p>
+</div>
+
+<div class="filters-bar">
+    <input type="text" id="search-input" placeholder="🔍 ابحث بالاسم أو اسم المستخدم (اختياري)">
+    <select id="category-filter">
+        <option value="all">كل الأقسام</option>
+        {% for cat in all_categories %}
+            <option value="{{ cat.key }}">{{ cat.icon }} {{ cat.display_name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="result-count" id="result-count"></div>
+
+<div class="card table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>المشترك</th>
+                <th>مسابقات مختلفة</th>
+                <th>إجمالي المحاولات</th>
+                <th>متوسط النسبة</th>
+                <th>آخر مسابقة</th>
+                <th>آخر نشاط</th>
+            </tr>
+        </thead>
+        <tbody id="subs-body"></tbody>
+    </table>
+</div>
+<div class="load-more-wrap">
+    <button type="button" class="btn btn-outline" id="load-more-btn" style="display:none;">عرض المزيد</button>
+</div>
+
+<!-- Sidebar: سجل المشترك -->
+<div class="detail-backdrop" id="detail-backdrop">
+    <aside class="detail-panel" id="detail-panel" role="dialog" aria-modal="true">
+        <div class="detail-header">
+            <div>
+                <h2 id="detail-name">—</h2>
+                <div class="detail-meta" id="detail-meta"></div>
+            </div>
+            <button type="button" class="close-btn" id="modal-close" aria-label="إغلاق">✕</button>
+        </div>
+        <div class="detail-body" id="modal-content">
+            <div class="loading-note">جارٍ التحميل...</div>
+        </div>
+    </aside>
+</div>
+
+<script>
+(function () {
+    const LIST_URL = "{% url 'subscribers_api' %}";
+    const DETAIL_URL_TPL = "{% url 'subscriber_detail_api' 0 %}";   // …/0/
+
+    const body = document.getElementById('subs-body');
+    const searchInput = document.getElementById('search-input');
+    const catSelect = document.getElementById('category-filter');
+    const countEl = document.getElementById('result-count');
+    const moreBtn = document.getElementById('load-more-btn');
+
+    const backdrop = document.getElementById('detail-backdrop');
+    const modalContent = document.getElementById('modal-content');
+    const detailName = document.getElementById('detail-name');
+    const detailMeta = document.getElementById('detail-meta');
+
+    let offset = 0, controller = null, timer = null;
+
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    function pctBadge(p) {
+        if (p === null || p === undefined) return '<span class="badge badge-muted">—</span>';
+        const cls = p >= 80 ? 'badge-success' : (p >= 50 ? 'badge-muted' : 'badge-danger');
+        return `<span class="badge ${cls}">${p}%</span>`;
+    }
+
+    // ── قائمة المشتركين ────────────────────────────────────────────────────
+    async function load(reset) {
+        if (reset) { offset = 0; body.innerHTML = ''; }
+        if (controller) controller.abort();
+        controller = new AbortController();
+
+        const params = new URLSearchParams({
+            q: searchInput.value.trim(),
+            category: catSelect.value,
+            offset: offset,
+        });
+        if (reset) body.innerHTML = '<tr><td colspan="6" class="loading-note">جارٍ التحميل...</td></tr>';
+
+        try {
+            const res = await fetch(`${LIST_URL}?${params}`, { signal: controller.signal });
+            const data = await res.json();
+            if (reset) body.innerHTML = '';
+
+            if (!data.rows.length && reset) {
+                body.innerHTML = '<tr><td colspan="6" class="empty-row">لا يوجد مشتركون مطابقون</td></tr>';
+            }
+            data.rows.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = 'sub-row';
+                tr.dataset.id = r.id;
+                tr.innerHTML = `
+                    <td><div class="sub-name">${esc(r.name)}</div><div class="sub-user">@${esc(r.username)}</div></td>
+                    <td>${r.quizzes_count}</td>
+                    <td>${r.attempts_count}</td>
+                    <td>${pctBadge(r.avg_pct)}</td>
+                    <td>${r.last_quiz ? esc(r.last_quiz) + ' ' + pctBadge(r.last_quiz_pct) : '—'}</td>
+                    <td>${esc(r.last_at)}</td>`;
+                body.appendChild(tr);
+            });
+            countEl.textContent = `إجمالي: ${data.total} مشترك`;
+            moreBtn.style.display = data.has_more ? 'inline-block' : 'none';
+            offset = data.next_offset;
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                body.innerHTML = '<tr><td colspan="6" class="empty-row">حدث خطأ أثناء التحميل</td></tr>';
+            }
+        }
+    }
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => load(true), 300);
+    });
+    catSelect.addEventListener('change', () => load(true));
+    moreBtn.addEventListener('click', () => load(false));
+
+    // ── سجل المشترك ────────────────────────────────────────────────────────
+    function attemptCell(a) {
+        return `<div class="attempt-cell">${pctBadge(a.pct)} ${a.score}/${a.total}
+                <small>⏱ ${esc(a.time)} · ${esc(a.date)}</small></div>`;
+    }
+
+    function openDetail() {
+        backdrop.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeDetail() {
+        backdrop.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    async function loadDetail(id) {
+        modalContent.innerHTML = '<div class="loading-note">جارٍ التحميل...</div>';
+        detailName.textContent = '...';
+        detailMeta.textContent = '';
+        openDetail();
+
+        try {
+            const res = await fetch(DETAIL_URL_TPL.replace('/0/', `/${id}/`));
+            const d = await res.json();
+
+            detailName.textContent = d.name;
+            detailMeta.textContent = `@${d.username} · انضم: ${d.joined}`;
+
+            const rows = d.quizzes.map(q => {
+                let trend = '<span class="badge badge-muted">—</span>';
+                if (q.improvement !== null) {
+                    const cls = q.improvement >= 0 ? 'trend-up' : 'trend-down';
+                    const arrow = q.improvement > 0 ? '▲' : (q.improvement < 0 ? '▼' : '=');
+                    trend = `<span class="${cls}">${arrow} ${Math.abs(q.improvement)}%</span>`;
+                }
+                return `<tr>
+                    <td>
+                        <div class="quiz-title">${esc(q.title)}</div>
+                        <div class="quiz-cat">${esc(q.category_icon || '📁')} ${esc(q.category)}</div>
+                    </td>
+                    <td>${q.attempts}</td>
+                    <td>${attemptCell(q.first)}</td>
+                    <td>${q.attempts > 1 ? attemptCell(q.last) : '—'}</td>
+                    <td>${attemptCell(q.best)}</td>
+                    <td>${trend}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="6" class="empty-row">لم يحل أي مسابقة بعد</td></tr>';
+
+            modalContent.innerHTML = `
+                <div class="mini-stats">
+                    <div class="mini-stat"><b>${d.quizzes_count}</b><span>مسابقات مختلفة</span></div>
+                    <div class="mini-stat"><b>${d.attempts_count}</b><span>إجمالي المحاولات</span></div>
+                    <div class="mini-stat"><b>${d.avg_best_pct === null ? '—' : d.avg_best_pct + '%'}</b><span>متوسط أفضل النتائج</span></div>
+                </div>
+                <div style="overflow-x:auto;">
+                <table>
+                    <thead><tr>
+                        <th>المسابقة</th>
+                        <th>المحاولات</th>
+                        <th>أول مرة</th>
+                        <th>آخر مرة</th>
+                        <th>أفضل نتيجة</th>
+                        <th>التحسّن</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table></div>`;
+        } catch (e) {
+            modalContent.innerHTML = '<div class="loading-note">حدث خطأ أثناء التحميل</div>';
+        }
+    }
+
+    body.addEventListener('click', (e) => {
+        const tr = e.target.closest('tr.sub-row');
+        if (tr) loadDetail(tr.dataset.id);
+    });
+
+    document.getElementById('modal-close').addEventListener('click', closeDetail);
+    backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) closeDetail();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDetail();
+    });
+
+    load(true);
+})();
+</script>
+{% endblock %}

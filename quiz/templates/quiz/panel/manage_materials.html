@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
     <h1>⚙️ إدارة المحتوى</h1>
-    <p>تعديل، حذف، أو التحكم في حالة نشر كل المحتوى — الكتاب المقدس، الكتب الروحية، واقرأ واعرف واكسب</p>
+    <p>تعديل، حذف، أو التحكم في حالة نشر كل المحتوى في جميع التصنيفات</p>
 </div>
 
 <style>
@@ -19,18 +19,16 @@
 </style>
 
 <div class="filter-tabs">
-    <a href="?category=all" class="filter-tab {% if category_filter == 'all' %}active{% endif %}">
+    <a href="?category=all" class="filter-tab {% if current_category == 'all' %}active{% endif %}">
         الكل <span class="count">({{ counts.all }})</span>
     </a>
-    <a href="?category=bible" class="filter-tab {% if category_filter == 'bible' %}active{% endif %}">
-        📖 كتاب مقدس <span class="count">({{ counts.bible }})</span>
+    {% for cat in all_categories %}
+    <a href="?category={{ cat.key }}"
+       class="filter-tab {% if current_category == cat.key %}active{% endif %}"
+       {% if not cat.is_active %}style="opacity:0.6;" title="تصنيف غير نشط"{% endif %}>
+        {{ cat.icon }} {{ cat.display_name }} <span class="count">({{ cat.material_count }})</span>
     </a>
-    <!-- <a href="?category=spiritual" class="filter-tab {% if category_filter == 'spiritual' %}active{% endif %}">
-        📚 كتاب روحي <span class="count">({{ counts.spiritual }})</span> -->
-    </a>
-    <a href="?category=iqraa" class="filter-tab {% if category_filter == 'iqraa' %}active{% endif %}">
-        📁 اقرأ واعرف واكسب <span class="count">({{ counts.iqraa }})</span>
-    </a>
+    {% endfor %}
 </div>
 
 <div class="card table-card">
@@ -40,12 +38,16 @@
         <button type="button" class="btn" id="create-dropdown-btn" style="padding: 8px 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 5px;">
              + محتوى جديد <span style="font-size: 0.75rem;">▼</span>
         </button>
-        <div id="create-dropdown-menu" style="display: none; position: absolute; left: 0; top: 110%; background: #ffffff; min-width: 180px; box-shadow: 0px 8px 16px rgba(0,0,0,0.1); border: 1px solid var(--light-border); border-radius: 8px; z-index: 1000; text-align: right; overflow: hidden;">
-            <a href="{% url 'create_material_step1' %}?category=bible" style="display: block; padding: 10px 15px; color: var(--text-color); text-decoration: none; font-size: 0.9rem; border-bottom: 1px solid #f5f5f5; transition: background 0.2s;">📖 كتاب مقدس</a>
-            <a href="{% url 'create_material_step1' %}?category=spiritual" style="display: block; padding: 10px 15px; color: var(--text-color); text-decoration: none; font-size: 0.9rem; border-bottom: 1px solid #f5f5f5; transition: background 0.2s;">📚 كتاب روحي</a>
-            <a href="{% url 'create_material_step1' %}?category=iqraa" style="display: block; padding: 10px 15px; color: var(--text-color); text-decoration: none; font-size: 0.9rem; transition: background 0.2s;">📁 اقرأ واعرف واكسب</a>
+        <div id="create-dropdown-menu" style="display: none; position: absolute; left: 0; top: 110%; background: #ffffff; min-width: 200px; box-shadow: 0px 8px 16px rgba(0,0,0,0.1); border: 1px solid var(--light-border); border-radius: 8px; z-index: 1000; text-align: right; overflow: hidden;">
+            {% for cat in all_categories %}
+                {% if cat.is_active %}
+                <a href="{% url 'create_material_step1' %}?category={{ cat.key }}" style="display: block; padding: 10px 15px; color: var(--text-color); text-decoration: none; font-size: 0.9rem; border-bottom: 1px solid #f5f5f5; transition: background 0.2s;">{{ cat.icon }} {{ cat.display_name }}</a>
+                {% endif %}
+            {% empty %}
+                <span style="display:block; padding:10px 15px; color:#999; font-size:0.9rem;">لا توجد تصنيفات — أضف تصنيفاً أولاً</span>
+            {% endfor %}
+        </div>
     </div>
-</div>
     </div>
     <table>
         <thead>
@@ -61,7 +63,7 @@
         <tbody>
             {% for material in materials %}
             <tr>
-                <td><span class="badge badge-muted">{{ material.get_category_display }}</span></td>
+                <td><span class="badge badge-muted">{{ material.category.display_label }}</span></td>
                 <td><strong>{{ material.source_name }}</strong> - {{ material.chapter_number }}{% if material.title %} ({{ material.title }}){% endif %}</td>
                 <td>{{ material.question_count }} سؤال</td>
                 <td>{{ material.created_at|date:"Y-m-d H:i" }}</td>

@@ -148,6 +148,43 @@
         margin: 0;
         line-height: 1.6;
     }
+
+    /* ------------------------------------------------------------- */
+    /* صندوق الرفع المباشر لـ Archive.org (نفس نمط badge_form) */
+    /* ------------------------------------------------------------- */
+    .upload-zone {
+        border: 2px dashed #D4AF37; background: #fffcf5; padding: 22px;
+        border-radius: 12px; text-align: center; cursor: pointer;
+        position: relative; transition: all 0.25s ease-in-out; margin-bottom: 10px;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+        background: #f7f1e1; border-color: #a67c37; transform: scale(1.005);
+    }
+    .upload-zone.small-zone { padding: 14px; margin-top: 4px; margin-bottom: 6px; }
+    .upload-icon { font-size: 2rem; color: #c5a059; margin-bottom: 8px; display: block; }
+    .upload-text { font-size: 0.88rem; color: #5d4037; font-weight: bold; display: block; }
+    .upload-hint { font-size: 0.75rem; color: #8d6e63; margin-top: 4px; display: block; }
+
+    .progress-bar-wrapper {
+        width: 100%; background: #eee; height: 6px; border-radius: 3px;
+        margin-top: 6px; margin-bottom: 10px; display: none; overflow: hidden;
+    }
+    .progress-bar-fill {
+        height: 100%; background: #c5a059; width: 0%; transition: width 0.2s ease;
+    }
+
+    .archive-notice {
+        background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404;
+        padding: 10px 15px; border-radius: 8px; font-size: 0.82rem; margin-top: 8px;
+        display: flex; align-items: center; gap: 8px;
+    }
+
+    .link-mode-toggle {
+        background: none; border: none; color: #b38646; font-size: 0.82rem;
+        text-decoration: underline; cursor: pointer; padding: 4px 0; margin-top: 4px;
+        display: inline-block;
+    }
+    .row-upload-slot { flex-basis: 100%; }
 </style>
 
 <div class="form-container-aligned">
@@ -167,43 +204,61 @@
         
         <!-- قسم كتابة البيانات والأسئلة -->
         <div id="section-write" class="form-card-aligned">
-            <div class="form-grid">
-                <div class="form-field">
-                    <label for="id_source_name">
-                        {% if category == 'bible' %}اسم السفر:{% elif category == 'spiritual' %}اسم الكتاب:{% else %}اسم الكتاب المقرر :{% endif %}
-                    </label>
-                    <input type="text" id="id_source_name" name="source_name" value="{% if material %}{{ material.source_name }}{% endif %}" required placeholder="مثال: سفر التكوين">
-                </div>
-                
-                {% if category == 'bible'%}
-                <div class="form-field">
-                    <label for="id_chapter_number">رقم الأصحاح :</label>
-                    <input type="number" id="id_chapter_number" name="chapter_number" value="{% if material %}{{ material.chapter_number }}{% else %}1{% endif %}" required min="1">
-                </div>
-                {% else %}
-            
-                <div class="form-field">
-                    <label for="id_chapter_number">رقم الفصل :</label>
-                    <input type="number" id="id_chapter_number" name="chapter_number" value="{% if material %}{{ material.chapter_number }}{% else %}1{% endif %}" required min="1">
-                </div>
-                {% endif %}
+           <div class="form-grid">
+    <div class="form-field">
+        <label for="id_source_name">{{ field_meta.source_label }}:</label>
+        <input type="text" id="id_source_name" name="source_name"
+               value="{% if material %}{{ material.source_name }}{% endif %}"
+               required
+               placeholder="{{ field_meta.source_placeholder }}">
+    </div>
 
-            </div>
+    <div class="form-field">
+        <label for="id_chapter_number">{{ field_meta.number_label }}:</label>
+        <input type="number" id="id_chapter_number" name="chapter_number"
+               value="{% if material %}{{ material.chapter_number }}{% else %}1{% endif %}"
+               required min="1"
+               placeholder="{{ field_meta.number_placeholder }}">
+    </div>
+</div>
 
-            <div class="form-field">
-                <label for="id_title">العنوان (اختياري):</label>
-                <input type="text" id="id_title" name="title" value="{% if material %}{{ material.title }}{% endif %}" placeholder="مثال: اسرار البيدر">
-            </div>
-
+<div class="form-field">
+    <label for="id_title">{{ field_meta.title_label }}:</label>
+    <input type="text" id="id_title" name="title"
+           value="{% if material %}{{ material.title }}{% endif %}"
+           placeholder="{{ field_meta.title_placeholder }}">
+</div>
             <!-- قسم الروابط الديناميكي المحدث بالكامل -->
-            {% if category == 'bible' or category == 'spiritual' %}
+            {# ── Links: none / single / multiple — driven by the Category settings ── #}
+            {% if category.has_links and category.link_mode == 'single' %}
                 <div class="single-pdf-container">
-                    <label for="id_single_pdf_url">🔗 رابط ملف الـ PDF المرفق بالمادة:</label>
-                    <input type="url" id="id_single_pdf_url" name="link_url[]" value="{% if existing_links %}{{ existing_links.0.url }}{% endif %}" placeholder="ضعِ رابط الـ PDF المباشر هنا (اختياري)...">
+                    <label for="id_single_pdf_url">🔗 ملف الـ PDF المرفق بالمادة:</label>
+
+                    <div class="upload-zone" id="drop_zone_single">
+                        <span class="upload-icon">📄</span>
+                        <span class="upload-text" id="upload_status_single">اسحب ملف الـ PDF هنا، أو اضغطي للاختيار من الجهاز</span>
+                        <span class="upload-hint">يتم الرفع مباشرة من متصفحك على Archive.org</span>
+                        <input type="file" id="file_picker_single" accept="application/pdf" style="display:none;">
+                    </div>
+
+                    <div class="progress-bar-wrapper" id="progress_wrapper_single">
+                        <div class="progress-bar-fill" id="progress_fill_single"></div>
+                    </div>
+
+                    <input type="url" id="id_single_pdf_url" name="link_url[]"
+                           value="{% if existing_links %}{{ existing_links.0.url }}{% endif %}"
+                           readonly
+                           placeholder="هيظهر رابط الملف هنا تلقائياً بعد ما يخلص الرفع...">
                     <input type="hidden" name="link_type[]" value="pdf">
                     <input type="hidden" name="link_label[]" value="تحميل الملف المرفق">
+
+                    <div class="archive-notice" id="archive_notice_single" style="{% if not existing_links or not existing_links.0.url %}display:none;{% endif %}">
+                        ℹ️ <span>الرابط ده بيتفعّل تلقائياً فور اكتمال الرفع، لكن Archive.org ممكن يستغرق دقيقة أو دقيقتين لغاية ما الملف يبقى متاح فعلياً للتنزيل - ده طبيعي ومش خطأ.</span>
+                    </div>
+
+                    <button type="button" class="link-mode-toggle" onclick="toggleManualUrlMode('id_single_pdf_url', this)">✏️ عندي رابط PDF جاهز وعايز ألصقه يدوي بدل الرفع</button>
                 </div>
-            {% else %}
+            {% elif category.has_links %}
                 <div class="links-management-container">
                     <h3 style="margin-top: 0; color: #b38646; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
                         <span>📂 المرفقات والروابط الإرشادية للمسابقة (صوت / صورة / PDF)</span>
@@ -279,11 +334,237 @@
 
 <script>
     const existingQuestions = {{ questions_json|safe }};
-    const currentCategory = "{{ category }}";
+    const currentCategory = "{{ category.key }}";
     const optionKeysOrdered = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const arabicLabelsMapping = { a: 'أ', b: 'ب', c: 'ج', d: 'د', e: 'هـ', f: 'و', g: 'ز', h: 'ح' };
 
+    // ------------------------------------------------------------------
+    // إعدادات الرفع المباشر (Client-Side) عن طريق الـ Cloudflare Worker
+    // الملف بيتبعت من متصفح المستخدم لـ Worker خفيف، وهو اللي بيعمله streaming
+    // مباشر لـ Archive.org (S3-like API) من غير ما يعدي على سيرفر Vercel بتاعنا،
+    // ومن غير ما مفاتيح Archive.org تبقى ظاهرة في كود المتصفح خالص.
+    // ------------------------------------------------------------------
+    const IA_CONFIG = {
+        workerUrl: "{{ IA_WORKER_URL }}".replace(/\/$/, ''),
+        prefix: "{{ IA_ITEM_PREFIX }}",
+        collection: "{{ IA_COLLECTION }}",
+    };
+
+
+    // ------------------------------------------------------------------
+    // أدوات مساعدة عامة للرفع المباشر
+    // ------------------------------------------------------------------
+    function slugifyAscii(str) {
+        return (str || '')
+            .toString()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 40) || 'material';
+    }
+
+    // Archive.org بيتوقع القيم غير الإنجليزية (زي العربي) بصيغة uri(...) متبوعة بترميز URI-encoded
+    function uriEncodeMeta(str) {
+        return 'uri(' + encodeURIComponent(str || '') + ')';
+    }
+
+    // بناء اسم عنصر (Identifier) فريد ومنظم لكل ملف، بادئة ثابتة تجمع كل ملفات
+    // التطبيق مع بعضها جوه حساب الـ Archive.org (تقدري تفلتري عليها لاحقاً بالبادئة دي)
+    function buildArchiveIdentifier(categoryHint) {
+        const rand = Math.random().toString(36).slice(2, 8);
+        const ts = Date.now().toString(36);
+        const catSlug = slugifyAscii(categoryHint || currentCategory || 'material');
+        return `${IA_CONFIG.prefix}-${catSlug}-${ts}-${rand}`;
+    }
+
+    // ربط أي صندوق سحب/إفلات بمُدخل ملف وبدالة تُستدعى عند اختيار ملف (سحب/إفلات/اختيار/لصق)
+    function wireDropZone(zoneEl, filePickerEl, onFile) {
+        zoneEl.addEventListener('click', () => filePickerEl.click());
+        zoneEl.addEventListener('dragover', (e) => { e.preventDefault(); zoneEl.classList.add('dragover'); });
+        zoneEl.addEventListener('dragleave', () => zoneEl.classList.remove('dragover'));
+        zoneEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zoneEl.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) onFile(e.dataTransfer.files[0]);
+        });
+        filePickerEl.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) onFile(e.target.files[0]);
+        });
+    }
+
+    // الرفع المباشر (PUT) من المتصفح لـ Archive.org S3-like API، مع Progress حقيقي وإعادة محاولة بسيطة
+    function uploadFileToArchive(file, opts, attempt = 1) {
+        const { statusEl, progressWrapperEl, progressFillEl, noticeEl, urlInputEl, mediatype = 'texts', titleHint = '' } = opts;
+        return new Promise((resolve, reject) => {
+            const identifier = buildArchiveIdentifier(mediatype);
+            const safeExt = ((file.name.split('.').pop() || 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'pdf';
+            const targetFilename = `${identifier}.${safeExt}`;
+            // بنكلم الـ Worker بتاعنا، مش s3.us.archive.org مباشرة
+            const putUrl = `${IA_CONFIG.workerUrl}/upload/${identifier}/${encodeURIComponent(targetFilename)}`;
+            const downloadUrl = `https://archive.org/download/${identifier}/${encodeURIComponent(targetFilename)}`;
+
+            if (statusEl) statusEl.innerText = "⏳ جاري الرفع...";
+            if (progressWrapperEl) progressWrapperEl.style.display = 'block';
+            if (progressFillEl) progressFillEl.style.width = '2%';
+            if (noticeEl) noticeEl.style.display = 'none';
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', putUrl, true);
+            // ملحوظة: مفيش Authorization هنا خالص - الـ Worker هو اللي بيضيفه
+            // من الـ secrets المخزنة عنده، المتصفح مش شايف المفتاح خالص
+            xhr.setRequestHeader('x-archive-meta-collection', IA_CONFIG.collection);
+            xhr.setRequestHeader('x-archive-meta-mediatype', mediatype);
+            xhr.setRequestHeader('x-archive-meta-language', 'ara');
+            xhr.setRequestHeader('x-archive-meta-title', uriEncodeMeta(titleHint || file.name));
+            xhr.setRequestHeader('x-archive-meta-subject', 'ftshuelkotob;quiz-app;' + currentCategory);
+            // بريوريتي أعلى في طابور المعالجة لأنه رفع تفاعلي من مستخدم حي دلوقتي، بيسرّع ظهور الملف
+            xhr.setRequestHeader('x-archive-interactive-priority', '1');
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable && progressFillEl) {
+                    const pct = Math.max(5, Math.round((e.loaded / e.total) * 100));
+                    progressFillEl.style.width = pct + '%';
+                    if (statusEl) statusEl.innerText = `⏳ جاري الرفع... ${pct}%`;
+                }
+            };
+
+            xhr.onload = () => {
+                let parsedUrl = downloadUrl;
+                try {
+                    const body = JSON.parse(xhr.responseText);
+                    if (body && body.download_url) parsedUrl = body.download_url;
+                } catch (e) { /* الرد مش JSON - نستخدم الرابط المحسوب زي ما هو */ }
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    if (statusEl) statusEl.innerText = "✅ تم الرفع بنجاح، الرابط اتحط تلقائياً تحت.";
+                    if (progressFillEl) progressFillEl.style.width = '100%';
+                    if (urlInputEl) urlInputEl.value = parsedUrl;
+                    if (noticeEl) noticeEl.style.display = 'flex';
+                    setTimeout(() => { if (progressWrapperEl) progressWrapperEl.style.display = 'none'; }, 800);
+                    resolve(parsedUrl);
+                } else if (xhr.status === 503 && attempt < 3) {
+                    // السيرفر مشغول (SlowDown) - نعيد المحاولة بعد شوية
+                    if (statusEl) statusEl.innerText = `⏳ خوادم Archive.org مشغولة، بنعيد المحاولة (${attempt}/3)...`;
+                    setTimeout(() => {
+                        uploadFileToArchive(file, opts, attempt + 1).then(resolve).catch(reject);
+                    }, 1500 * attempt);
+                } else {
+                    if (statusEl) statusEl.innerText = `❌ فشل الرفع (كود ${xhr.status}). ممكن تجربي تاني أو تلصقي رابط جاهز.`;
+                    reject(new Error('IA upload failed: ' + xhr.status));
+                }
+            };
+
+            xhr.onerror = () => {
+                if (statusEl) statusEl.innerText = "❌ تعذر الاتصال بخدمة الرفع. اتأكدي إن الـ Worker شغال والإنترنت متصل، وجربي تاني.";
+                reject(new Error('network error'));
+            };
+
+            xhr.send(file);
+        });
+    }
+
+    function toggleManualUrlMode(inputId, btnEl) {
+        const input = document.getElementById(inputId);
+        if (input.hasAttribute('readonly')) {
+            input.removeAttribute('readonly');
+            input.focus();
+            btnEl.innerText = "🔒 رجّعي وضع الرفع التلقائي بدل اللصق اليدوي";
+        } else {
+            input.setAttribute('readonly', 'readonly');
+            btnEl.innerText = "✏️ عندي رابط PDF جاهز وعايز ألصقه يدوي بدل الرفع";
+        }
+    }
+
+
+    // ------------------------------------------------------------------
+    // ربط صندوق الرفع الواحد (قسم الكتاب المقدس / الروحي)
+    // ------------------------------------------------------------------
+    function initSinglePdfZone() {
+        const zone = document.getElementById('drop_zone_single');
+        if (!zone) return;
+        const picker = document.getElementById('file_picker_single');
+        const statusEl = document.getElementById('upload_status_single');
+        const pWrapper = document.getElementById('progress_wrapper_single');
+        const pFill = document.getElementById('progress_fill_single');
+        const notice = document.getElementById('archive_notice_single');
+        const urlInput = document.getElementById('id_single_pdf_url');
+
+        wireDropZone(zone, picker, (file) => {
+            const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            if (!isPdf) {
+                statusEl.innerText = "⚠️ الرجاء اختيار ملف PDF فقط.";
+                return;
+            }
+            const titleHint = (document.getElementById('id_source_name').value || '') + ' - ' + (document.getElementById('id_chapter_number').value || '');
+            uploadFileToArchive(file, {
+                statusEl, progressWrapperEl: pWrapper, progressFillEl: pFill, noticeEl: notice, urlInputEl: urlInput,
+                mediatype: 'texts', titleHint
+            }).catch(() => {});
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // ربط صندوق رفع داخل كل صف رابط (قسم اقرأ واعرف واكسب - روابط متعددة)
+    // ------------------------------------------------------------------
+    function attachRowUploadWidget(rowEl) {
+        if (!rowEl || rowEl.querySelector('.row-upload-slot')) return;
+
+        const typeSelect = rowEl.querySelector('select[name="link_type[]"]');
+        const urlInput = rowEl.querySelector('input[name="link_url[]"]');
+        const labelInput = rowEl.querySelector('input[name="link_label[]"]');
+
+        const slot = document.createElement('div');
+        slot.className = 'row-upload-slot';
+        slot.innerHTML = `
+            <div class="upload-zone small-zone">
+                <span class="upload-icon" style="font-size:1.3rem;">📤</span>
+                <span class="upload-text row-upload-status">اضغطي هنا أو اسحبي ملف لرفعه مباشرة على Archive.org بدل ما تلصقي رابط جاهز</span>
+                <input type="file" style="display:none;">
+            </div>
+            <div class="progress-bar-wrapper"><div class="progress-bar-fill"></div></div>
+            <div class="archive-notice" style="display:none;">
+                ℹ️ <span>الرابط هيتفعّل تلقائياً فور اكتمال الرفع، وقد يستغرق ظهوره الكامل على Archive.org دقيقة أو دقيقتين.</span>
+            </div>
+        `;
+        rowEl.appendChild(slot);
+
+        const zone = slot.querySelector('.upload-zone');
+        const picker = slot.querySelector('input[type="file"]');
+        const statusEl = slot.querySelector('.row-upload-status');
+        const pWrapper = slot.querySelector('.progress-bar-wrapper');
+        const pFill = slot.querySelector('.progress-bar-fill');
+        const notice = slot.querySelector('.archive-notice');
+
+        function currentAccept() {
+            const t = typeSelect ? typeSelect.value : 'pdf';
+            if (t === 'audio') return 'audio/*';
+            if (t === 'image') return 'image/*';
+            return 'application/pdf';
+        }
+        function currentMediatype() {
+            const t = typeSelect ? typeSelect.value : 'pdf';
+            if (t === 'audio') return 'audio';
+            if (t === 'image') return 'image';
+            return 'texts';
+        }
+        picker.setAttribute('accept', currentAccept());
+        if (typeSelect) typeSelect.addEventListener('change', () => picker.setAttribute('accept', currentAccept()));
+
+        wireDropZone(zone, picker, (file) => {
+            const titleHint = (labelInput && labelInput.value) || document.getElementById('id_source_name').value || file.name;
+            uploadFileToArchive(file, {
+                statusEl, progressWrapperEl: pWrapper, progressFillEl: pFill, noticeEl: notice, urlInputEl: urlInput,
+                mediatype: currentMediatype(), titleHint
+            }).then(() => {
+                if (urlInput) urlInput.setAttribute('readonly', 'readonly');
+            }).catch(() => {});
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+        initSinglePdfZone();
+        document.querySelectorAll('.link-row-item').forEach(attachRowUploadWidget);
+
         if (currentCategory === 'iqraa') {
             const wrapper = document.getElementById('links-rows-wrapper');
             if (wrapper && wrapper.children.length === 0) {
@@ -333,6 +614,8 @@
             </div>
         `;
         wrapper.insertAdjacentHTML('beforeend', rowHtml);
+        const newRow = document.getElementById(`link-row-${rowId}`);
+        attachRowUploadWidget(newRow);
     }
 
     function removeLinkRow(buttonElement) {

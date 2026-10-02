@@ -64,9 +64,10 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
     font-size: 0.75rem; font-weight: bold; padding: 4px 12px; border-radius: 15px;
     display: inline-block; margin-bottom: 12px; position: absolute; right: 24px; top: 24px;
 }
-.tag-bible { background: #e3f2fd; color: #0d47a1; }
-.tag-spiritual { background: #f3e5f5; color: #4a148c; }
-.tag-iqraa { background: #efebe9; color: #3e2723; }
+.quiz-category-tag { background: #fdf3d8; color: #996515; }
+.quiz-category-tag[data-cat="bible"] { background: #e3f2fd; color: #0d47a1; }
+.quiz-category-tag[data-cat="spiritual"] { background: #f3e5f5; color: #4a148c; }
+.quiz-category-tag[data-cat="iqraa"] { background: #efebe9; color: #3e2723; }
 
 .quiz-card h3 { margin: 40px 0 10px 0; color: #3e2723; font-size: 1.3rem; font-weight: 900; line-height: 1.4; }
 .quiz-meta { color: #6d4c41; font-size: 0.9rem; margin-bottom: 20px; display: flex; flex-direction: column; gap: 5px; }
@@ -126,7 +127,7 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
 <div class="container">
     <div class="welcome-card">
         <h1> فتشوا الكتب - منصة المسابقات الكتابية ✝</h1>
-        <p class="subtitle">اشترك في المسابقات اليومية واختبر معلوماتك الكتابية واصعد في لوحة الصدارة!</p>
+        <p class="subtitle">اشترك في المسابقات اليومية واختبر معلوماتك الكتابية!</p>
 
         <div id="logged-out-ui">
             <button onclick="loginWithGoogle()" class="google-btn">
@@ -157,33 +158,26 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
     <!-- ============================== -->
     <div id="section-quizzes">
         <div class="filter-tabs">
-            <a href="?category=bible" class="filter-tab {% if category_filter == 'bible' %}active{% endif %}">
-                📖 كتاب مقدس <span class="count">{{ counts.bible }}</span>
+            <a href="?category=all" class="filter-tab {% if category_filter == 'all' %}active{% endif %}">
+                🗂️ الكل <span class="count">{{ counts.all }}</span>
             </a>
-            <!-- <a href="?category=spiritual" class="filter-tab {% if category_filter == 'spiritual' %}active{% endif %}">
-                📚 كتب روحية <span class="count">{{ counts.spiritual }}</span>
-            </a> -->
-            <a href="?category=iqraa" class="filter-tab {% if category_filter == 'iqraa' %}active{% endif %}">
-                📁 اقرأ واعرف واكسب <span class="count">{{ counts.iqraa }}</span>
+            {% for cat in active_categories %}
+            <a href="?category={{ cat.key }}" class="filter-tab {% if category_filter == cat.key %}active{% endif %}">
+                {{ cat.icon }} {{ cat.display_name }} <span class="count">{{ cat.material_count }}</span>
             </a>
+            {% endfor %}
         </div>
 
         <div class="quiz-grid">
             {% for material in materials %}
                 <div class="quiz-card">
                     <div>
-                        {% if material.category == 'bible' %}
-                            <span class="quiz-category-tag tag-bible">📖 كتاب مقدس</span>
-                        {% elif material.category == 'spiritual' %}
-                            <span class="quiz-category-tag tag-spiritual">📚 كتاب روحي</span>
-                        {% else %}
-                            <span class="quiz-category-tag tag-iqraa">📁 اقرأ واعرف واكسب</span>
-                        {% endif %}
+                        <span class="quiz-category-tag" data-cat="{{ material.category.key }}">{{ material.category.display_label }}</span>
 
                         <h3>{{ material.source_name }}</h3>
 
                         <div class="quiz-meta">
-                            <span>{% if material.category == 'bible' %} اصحاح {% else %} فصل {% endif %}: <b>{{ material.chapter_number }}</b></span>
+                            <span>{% if material.category.key == 'bible' %} اصحاح {% else %} فصل {% endif %}: <b>{{ material.chapter_number }}</b></span>
                             {% if material.title %}
                                 <span style="font-size: 0.85rem; color: #8d6e63;"> {{ material.title }}</span>
                             {% endif %}
@@ -393,5 +387,14 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
             clearTimeout(pressTimer);
         });
     });
+
+    window.logout = async function () {
+    try {
+        await _supabase.auth.signOut();
+    } catch (err) {
+        console.error('logout error:', err);
+    }
+    window.location.href = '/';
+};
 </script>
 {% endblock %}
