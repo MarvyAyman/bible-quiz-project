@@ -405,6 +405,13 @@
     // جلب الروابط والبيانات المحقونة من السيرفر
     const mediaLinks = JSON.parse(document.getElementById('quiz-links-data').textContent);
 
+    async function loginWithGoogle() {
+    await _supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+    });
+}
+
     // بناء الأزرار ديناميكياً داخل الواجهة التمهيدية
     function initIntroInterface() {
         const wrapper = document.getElementById('media-cards-wrapper');
@@ -620,7 +627,7 @@
     async function checkAuthGuard() {
         const { data: { session } } = await _supabase.auth.getSession();
         if (!session) {
-            const { data, error: hashError } = await _supabase.auth.exchangeCodeForSession(window.location.hash);
+            // Supabase v2 auto-exchanges ?code= on init; re-read session
             const { data: { session: newSession } } = await _supabase.auth.getSession();
             if (!newSession) {
                 document.getElementById('quiz-wrapper').classList.add('hidden');
@@ -632,7 +639,6 @@
             userToken = session.access_token;
         }
         loadQuestion();
-        // بدون روابط/مواد تحضيرية → ندخل الأسئلة مباشرة بدون شاشة التمهيد
         if (!mediaLinks || mediaLinks.length === 0) {
             startQuizQuestions();
         } else {
