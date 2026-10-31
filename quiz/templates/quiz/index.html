@@ -177,7 +177,11 @@ h1 { color: var(--dark-gold); font-size: 2.2rem; margin: 10px 0; }
                         <h3>{{ material.source_name }}</h3>
 
                         <div class="quiz-meta">
+                            {% if material.chapter_number is not None %}
+                                {% if material.chapter_number is not None %}
                             <span>{% if material.category.key == 'bible' %} اصحاح {% else %} فصل {% endif %}: <b>{{ material.chapter_number }}</b></span>
+                            {% endif %}
+                            {% endif %}
                             {% if material.title %}
                                 <span style="font-size: 0.85rem; color: #8d6e63;"> {{ material.title }}</span>
                             {% endif %}

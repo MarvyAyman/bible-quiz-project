@@ -277,7 +277,7 @@
 
     <div id="quiz-wrapper">
         <div class="header">
-            <h1>{{ material.source_name }} - {% if material.category.key == 'bible' %}الأصحاح{% else %}الفصل{% endif %} {{ material.chapter_number }}</h1>
+            <h1>{{ material.source_name }}{% if material.chapter_number is not None %} - {% if material.category.key == 'bible' %}الأصحاح{% else %}الفصل{% endif %} {{ material.chapter_number }}{% endif %}</h1>
             {% if material.title %}<p style="margin: 5px 0 0 0; color: #6d4c41; font-weight: bold;">{{ material.title }}</p>{% endif %}
         </div>
 
@@ -301,7 +301,9 @@
         <div id="quiz-ui" class="hidden">
             <div class="info-bar">
                 <span>السؤال: <span id="q-count">1</span> / <span id="q-total">0</span></span>
-                <span id="timer">15:00</span>
+                {% if show_timer %}
+                <span id="timer">—</span>
+                {% endif %}
             </div>
 
             <div class="progress-wrap">
@@ -665,15 +667,25 @@
 
     qTotalDisplay.textContent = questions.length;
 
+    // 🆕 Passed from Django — whether the category shows a countdown
+    const SHOW_TIMER = {{ show_timer|yesno:"true,false" }};
+
     function startTimer() {
         if (timerStarted) return;
         timerStarted = true;
         timerInterval = setInterval(() => {
             timeLeft--;
-            const mins = Math.floor(timeLeft / 60);
-            const secs = timeLeft % 60;
-            timerDisplay.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-            if (timeLeft <= 0) finalizeQuiz();
+
+            if (timerDisplay) {
+                const mins = Math.floor(timeLeft / 60);
+                const secs = timeLeft % 60;
+                timerDisplay.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+
+            // 🆕 Only enforce the 15-min cap when the timer is actually shown.
+            //    When hidden → no cap; user can take as long as they want,
+            //    and the real elapsed time is still captured.
+            if (SHOW_TIMER && timeLeft <= 0) finalizeQuiz();
         }, 1000);
     }
 
@@ -715,11 +727,14 @@
             btn.classList.add('wrong');
             const correctBtn = optionsContainer.querySelector(`button[data-key="${q.correct}"]`);
             if (correctBtn) correctBtn.classList.add('correct');
-            if (q.explanation) {
-                explDiv.innerHTML = `<strong>التفسير:</strong> ${q.explanation}`;
-                explDiv.style.display = 'block';
-            }
         }
+
+        // 🆕 Show the explanation regardless of whether the answer was correct or wrong
+        if (q.explanation) {
+            explDiv.innerHTML = `<strong>التفسير:</strong> ${q.explanation}`;
+            explDiv.style.display = 'block';
+        }
+
         nextBtn.style.display = 'block';
     }
 
@@ -732,7 +747,7 @@
         clearInterval(timerInterval);
         document.getElementById('quiz-ui').style.display = 'none';
         document.getElementById('loading-ui').style.display = 'block';
-        const elapsedSeconds = totalDurationSeconds - timeLeft;
+        const elapsedSeconds = Math.max(0, totalDurationSeconds - timeLeft);
 
         if (!userToken) { window.location.href = 'leaderboard/'; return; }
 

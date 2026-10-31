@@ -36,6 +36,8 @@
                     {% else %}
                         <span class="badge badge-muted">بدون</span>
                     {% endif %}
+                    {% if c.chapter_number_optional %}<br><span class="badge badge-muted">رقم اختياري</span>{% endif %}
+                    {% if c.has_timer %}<br><span class="badge badge-muted">⏱ مؤقت</span>{% endif %}
                 </td>
                 <td>
                     {% if c.is_active %}

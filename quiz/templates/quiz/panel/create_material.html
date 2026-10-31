@@ -215,10 +215,11 @@
 
     <div class="form-field">
         <label for="id_chapter_number">{{ field_meta.number_label }}:</label>
-        <input type="number" id="id_chapter_number" name="chapter_number"
+        <input type="number" id="id_chapter_number" name="chapter_number" {% if not category_chapter_optional %}required{% endif %}
                value="{% if material %}{{ material.chapter_number }}{% else %}1{% endif %}"
-               required min="1"
+               min="1"
                placeholder="{{ field_meta.number_placeholder }}">
+       
     </div>
 </div>
 

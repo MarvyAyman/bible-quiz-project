@@ -56,7 +56,30 @@
                 التصنيف نشط ويظهر في القائمة العلوية
             </label>
         </div>
+                {# ── Chapter number optional + Timer toggles ───────────────── #}
+        <div class="form-grid" style="margin-top:14px;">
+            <div class="form-field">
+                <label style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" name="chapter_number_optional" id="chapter_number_optional"
+                           {% if form_data.chapter_number_optional %}checked{% endif %}>
+                    رقم الأصحاح / الفصل اختياري
+                </label>
+                <small style="color:#8d6e63;">
+                    عند التفعيل: يمكن إضافة مادة بدون إدخال رقم الأصحاح (مفيد للمواضيع العامة).
+                </small>
+            </div>
 
+            <div class="form-field">
+                <label style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" name="has_timer" id="has_timer"
+                           {% if form_data.has_timer %}checked{% endif %}>
+                    تمكين المؤقت الزمني
+                </label>
+                <small style="color:#8d6e63;">
+                    عند التفعيل: تظهر ساعة عدّ تنازلي في صفحة المسابقة لهذا التصنيف.
+                </small>
+            </div>
+        </div>
         <hr class="divider">
 
         {# ── Links settings ─────────────────────────────────────────── #}

@@ -52,7 +52,19 @@ class Category(models.Model):
         verbose_name="طريقة عرض الروابط",
         help_text="يُستخدم فقط عندما يكون خيار الروابط مفعّلاً.",
     )
+    
+    chapter_number_optional = models.BooleanField(
+        default=False,
+        verbose_name="رقم الأصحاح اختياري",
+        help_text="عند التفعيل، يمكن إضافة مادة في هذا التصنيف بدون إدخال رقم الأصحاح / الفصل.",
+    )
 
+    has_timer = models.BooleanField(
+        default=False,
+        verbose_name="تمكين المؤقت الزمني",
+        help_text="عند التفعيل، تظهر ساعة عدّ تنازلي في صفحة المسابقة لهذا التصنيف.",
+    )
+    
     order = models.PositiveIntegerField(default=0, db_index=True, verbose_name="الترتيب")
     is_active = models.BooleanField(default=True, db_index=True, verbose_name="نشط")
     created_at = models.DateTimeField(default=timezone.now)
@@ -94,7 +106,10 @@ class Material(models.Model):
         verbose_name="تصنيف المحتوى",
     )
     source_name = models.CharField(max_length=100, verbose_name="اسم السفر / الكتاب")
-    chapter_number = models.IntegerField(verbose_name="رقم الأصحاح / الفصل")
+    chapter_number = models.IntegerField(
+        null=True, blank=True,
+        verbose_name="رقم الأصحاح / الفصل",
+    )
     title = models.CharField(
         max_length=200, blank=True, default='',
         verbose_name="عنوان فرعي (اختياري)",
@@ -116,8 +131,12 @@ class Material(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            prefix = self.category.key if self.category_id else 'محتوى'  # 👈 FIXED
-            base_slug = f"{prefix}-{self.source_name}-الاصحاح-{self.chapter_number}"
+            prefix = self.category.key if self.category_id else 'محتوى'
+            if self.chapter_number is not None:
+                chapter_part = f"-الاصحاح-{self.chapter_number}"
+            else:
+                chapter_part = ""
+            base_slug = f"{prefix}-{self.source_name}{chapter_part}"
             if self.title:
                 base_slug += f"-{self.title}"
             self.slug = base_slug.replace(" ", "-")
@@ -128,7 +147,8 @@ class Material(models.Model):
         return self.questions.count()
 
     def __str__(self):
-        return f"[{self.category.display_name}] {self.source_name} - {self.chapter_number}"  # 👈 FIXED
+        chap = self.chapter_number if self.chapter_number is not None else "—"
+        return f"[{self.category.display_name}] {self.source_name} - {chap}"
 
 # ---------------------------------------------------------------------------
 # MaterialLink

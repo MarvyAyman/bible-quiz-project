@@ -223,9 +223,11 @@ def quiz_view(request, quiz_slug):
         'material': material,
         'links': links,
         'show_links_section': material.category.has_links,   # 🆕 explicit flag for template
+        'show_timer': material.category.has_timer,          # 🆕        
         'questions_data': questions_data,
         'SUPABASE_URL': settings.SUPABASE_URL,
         'SUPABASE_ANON_KEY': settings.SUPABASE_ANON_KEY,
+        
     }
     return render(request, 'quiz/quiz_detail.html', context)
 
@@ -984,19 +986,33 @@ def create_material_step1(request, quiz_slug=None):
 
     # 3. Handle submit
     if request.method == 'POST':
-        source_name = request.POST.get('source_name', '').strip()
-        try:
-            chapter_number = int(request.POST.get('chapter_number', 1))
-        except ValueError:
-            chapter_number = 1
-        title = request.POST.get('title', '').strip()
-
-        # Allow changing category from the form
+        # Resolve the target category FIRST
         posted_cat_key = request.POST.get('category_key')
         if posted_cat_key:
             new_cat = Category.objects.filter(key=posted_cat_key).first()
             if new_cat:
                 category = new_cat
+
+        source_name = request.POST.get('source_name', '').strip()
+        if category.chapter_number_optional:
+            raw_chapter = request.POST.get('chapter_number', '').strip()
+            try:
+                chapter_number = int(raw_chapter) if raw_chapter else None
+            except ValueError:
+                chapter_number = None
+        else:
+            try:
+                chapter_number = int(request.POST.get('chapter_number', 1))
+            except ValueError:
+                chapter_number = 1
+        title = request.POST.get('title', '').strip()
+
+        # # Allow changing category from the form
+        # posted_cat_key = request.POST.get('category_key')
+        # if posted_cat_key:
+        #     new_cat = Category.objects.filter(key=posted_cat_key).first()
+        #     if new_cat:
+        #         category = new_cat
 
         if not material:
             material = Material(category=category)
@@ -1080,6 +1096,8 @@ def create_material_step1(request, quiz_slug=None):
         'category': category,
         'category_label': category.display_label if category else '',
         'category_has_links': category.has_links if category else True,
+        'category_chapter_optional': category.chapter_number_optional if category else False,   # 🆕
+        'category_has_timer': category.has_timer if category else False,                        # 🆕
         'all_categories': all_categories,
         'questions_json': json.dumps(questions_json, ensure_ascii=False),
         'existing_links': existing_links,
@@ -1145,6 +1163,8 @@ def category_create(request):
         is_active = 'is_active' in request.POST
         has_links = 'has_links' in request.POST
         link_mode = request.POST.get('link_mode', 'multiple')
+        chapter_number_optional = 'chapter_number_optional' in request.POST   # 🆕
+        has_timer = 'has_timer' in request.POST                               # 🆕
         if link_mode not in ('single', 'multiple'):
             link_mode = 'multiple'
 
@@ -1170,6 +1190,8 @@ def category_create(request):
             is_active=is_active,
             has_links=has_links,
             link_mode=link_mode if has_links else 'multiple',
+            chapter_number_optional=chapter_number_optional,   # 🆕
+            has_timer=has_timer,                               # 🆕
         )
         return redirect('manage_categories')
 
@@ -1179,6 +1201,8 @@ def category_create(request):
             'has_links': True,
             'icon': '📁',
             'link_mode': 'multiple',
+            'chapter_number_optional': False,   # 🆕
+            'has_timer': False,                 # 🆕
         },
         'active': 'manage_categories',
     })
@@ -1195,6 +1219,8 @@ def category_edit(request, category_id):
         is_active = 'is_active' in request.POST
         has_links = 'has_links' in request.POST
         link_mode = request.POST.get('link_mode', 'multiple')
+        chapter_number_optional = 'chapter_number_optional' in request.POST   # 🆕
+        has_timer = 'has_timer' in request.POST                               # 🆕
         if link_mode not in ('single', 'multiple'):
             link_mode = 'multiple'
 
@@ -1221,6 +1247,8 @@ def category_edit(request, category_id):
         category.is_active = is_active
         category.has_links = has_links
         category.link_mode = link_mode if has_links else 'multiple'
+        category.chapter_number_optional = chapter_number_optional   # 🆕
+        category.has_timer = has_timer                               # 🆕
         category.save()
         return redirect('manage_categories')
 
@@ -1234,6 +1262,8 @@ def category_edit(request, category_id):
             'is_active': category.is_active,
             'has_links': category.has_links,
             'link_mode': category.link_mode,
+            'chapter_number_optional': category.chapter_number_optional,   # 🆕
+            'has_timer': category.has_timer,                               # 🆕
         },
         'active': 'manage_categories',
     })
