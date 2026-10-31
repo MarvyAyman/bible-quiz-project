@@ -18,7 +18,35 @@
     .sub-user { font-size: 0.78rem; color: #a89880; }
     .loading-note { text-align: center; color: #8d6e63; padding: 20px; }
     .load-more-wrap { text-align: center; margin-top: 15px; }
-    .attempt-cell small { display: block; color: #a89880; font-size: 0.75rem; }
+    .attempt-cell small {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        font-size: 0.78rem;
+        background: #fffaf0;
+        border: 1px solid #f2e8d5;
+        border-radius: 8px;
+        padding: 4px 10px;
+        width: fit-content;
+        font-weight: 500;
+        direction: rtl;              /* 🆕 force right-to-left */
+        unicode-bidi: plaintext;     /* 🆕 keep the separator order sane */
+        text-align: right;
+    }
+    .attempt-time {
+        color: var(--dark-gold);
+        font-weight: 700;
+        letter-spacing: 0.3px;
+    }
+    .attempt-sep {
+        color: #d0c4a8;
+        font-weight: 400;
+    }
+    .attempt-date {
+        color: #8d6e63;
+        font-size: 0.75rem;
+    }
     .trend-up { color: var(--success); font-weight: 700; }
     .trend-down { color: var(--danger); font-weight: 700; }
     .quiz-title { font-weight: 700; }
@@ -147,6 +175,44 @@
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
         ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+    // 🆕 Arabic date/time formatter — turns "2026-10-31 14:22" into
+    //    "31 أكتوبر 2026، الساعة 2:22 م"
+    const AR_MONTHS = [
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+
+    // Convert Western digits to Arabic-Indic (٠١٢٣…). Comment this out
+    // if you prefer Western digits.
+    function toArabicDigits(str) {
+        const map = { '0':'٠','1':'١','2':'٢','3':'٣','4':'٤','5':'٥','6':'٦','7':'٧','8':'٨','9':'٩' };
+        return String(str).replace(/[0-9]/g, d => map[d]);
+    }
+
+    // Parse "YYYY-MM-DD HH:MM" → "DD <month> YYYY، الساعة h:mm ص/م"
+    function formatArabicDateTime(raw) {
+        if (!raw || raw === '—') return '—';
+
+        // raw comes as "2026-10-31 14:22" from Django's _fmt_dt()
+        const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+        if (!m) return raw;  // fall back to raw if format unexpected
+
+        const year  = m[1];
+        const month = parseInt(m[2], 10) - 1;   // 0-based
+        const day   = String(parseInt(m[3], 10)); // strip leading zero
+        let hour    = parseInt(m[4], 10);
+        const minute = m[5];
+
+        const period = hour >= 12 ? 'م' : 'ص';
+        hour = hour % 12;
+        if (hour === 0) hour = 12;
+
+        const datePart = `${day} ${AR_MONTHS[month]} ${year}`;
+        const timePart = `${hour}:${minute} ${period}`;
+
+        return `${datePart}، الساعة ${timePart}`;
+    }
+
     function pctBadge(p) {
         if (p === null || p === undefined) return '<span class="badge badge-muted">—</span>';
         const cls = p >= 80 ? 'badge-success' : (p >= 50 ? 'badge-muted' : 'badge-danger');
@@ -184,7 +250,7 @@
                     <td>${r.attempts_count}</td>
                     <td>${pctBadge(r.avg_pct)}</td>
                     <td>${r.last_quiz ? esc(r.last_quiz) + ' ' + pctBadge(r.last_quiz_pct) : '—'}</td>
-                    <td>${esc(r.last_at)}</td>`;
+                    <td>${esc(formatArabicDateTime(r.last_at))}</td>`;
                 body.appendChild(tr);
             });
             countEl.textContent = `إجمالي: ${data.total} مشترك`;
@@ -206,8 +272,14 @@
 
     // ── سجل المشترك ────────────────────────────────────────────────────────
     function attemptCell(a) {
+        const arabicDate = toArabicDigits(formatArabicDateTime(a.date));
+        const arabicTime = toArabicDigits(a.time);   // keep as-is but with Arabic digits
         return `<div class="attempt-cell">${pctBadge(a.pct)} ${a.score}/${a.total}
-                <small>⏱ ${esc(a.time)} · ${esc(a.date)}</small></div>`;
+                <small>
+                    <span class="attempt-time">⏱ ${esc(arabicTime)}</span>
+                    <span class="attempt-sep">·</span>
+                    <span class="attempt-date">${esc(arabicDate)}</span>
+                </small></div>`;
     }
 
     function openDetail() {
