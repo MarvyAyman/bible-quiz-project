@@ -705,12 +705,20 @@
         nextBtn.style.display = 'none';
         progressBar.style.width = `${(currentQ / questions.length) * 100}%`;
 
-        q.choices.forEach((choice) => {
+        // 🆕 Shuffle the *display order* only. The original key stays with each choice,
+        //     so the submitted `selected_choice` still matches the correct key on the server.
+        const shuffledChoices = [...q.choices];
+        for (let i = shuffledChoices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledChoices[i], shuffledChoices[j]] = [shuffledChoices[j], shuffledChoices[i]];
+        }
+        
+        shuffledChoices.forEach((choice) => {
             const btn = document.createElement('button');
             btn.className = 'option-btn';
             btn.textContent = choice.text;
-            btn.dataset.key = choice.key;
-            btn.onclick = () => checkAnswer(choice.key, btn);
+            btn.dataset.key = choice.key;                 // still the ORIGINAL key
+            btn.onclick = () => checkAnswer(choice.key, btn);  // sends the ORIGINAL key
             optionsContainer.appendChild(btn);
         });
     }
