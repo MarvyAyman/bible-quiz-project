@@ -1023,11 +1023,13 @@ def create_material_step1(request, quiz_slug=None):
         material.chapter_number = chapter_number
         material.title = title
 
-        # Custom slug
+        # Custom slug — only include the chapter part when chapter_number is set
+        parts = [source_name]
+        if chapter_number is not None:
+            parts.append(f"الاصحاح {chapter_number}")
         if title:
-            slug_text = f"{source_name} الاصحاح {chapter_number} {title}"
-        else:
-            slug_text = f"{source_name} الاصحاح {chapter_number}"
+            parts.append(title)
+        slug_text = " ".join(parts)
         material.slug = slugify(slug_text, allow_unicode=True)
         material.save()
 
